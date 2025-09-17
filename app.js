@@ -99,79 +99,47 @@
       }
     },
     renderWelcome() {
-      const profile = this.state.profile || {};
       this.appEl.innerHTML = `
-        <section class="card">
-          <div class="banner">
-            <h1>Планирование свадьбы без стресса</h1>
-            <p>Российская версия Bridebook поможет вам подобрать подрядчиков, отслеживать бюджет и подготовиться к идеальному дню. Начните с короткого теста — сервис подстроит подборки под ваши ответы.</p>
+        <section class="card welcome">
+          <div class="welcome__header">
+            <div class="welcome__copy">
+              <h1>Планирование свадьбы без стресса</h1>
+              <p class="welcome__lead">Подберём подрядчиков, поможем с бюджетом и сроками — всё в одном месте. Пройдите короткий тест, и мы настроим рекомендации под вашу пару.</p>
+              <div class="welcome__cta">
+                <button type="button" id="start-quiz">Начать тест</button>
+                <p class="welcome__note">Это бесплатно. Прогресс сохраняется.</p>
+              </div>
+            </div>
+            <div class="welcome__hero">
+              <div class="welcome__hero-graphic" aria-hidden="true">🤵‍♂️👰‍♀️</div>
+            </div>
           </div>
-          <form id="welcome-form" novalidate>
-            <div>
-              <label for="groom-name">Имя жениха</label>
-              <input id="groom-name" name="groomName" type="text" required placeholder="Иван" value="${profile.groomName ? profile.groomName : ""}">
-            </div>
-            <div>
-              <label for="bride-name">Имя невесты</label>
-              <input id="bride-name" name="brideName" type="text" required placeholder="Анна" value="${profile.brideName ? profile.brideName : ""}">
-            </div>
-            <div class="welcome-actions">
-              <button type="submit">Начать тест</button>
-              ${profile.weddingId ? `<button type="button" class="secondary" id="goto-dashboard">Перейти к рабочему столу</button>` : ""}
-            </div>
-          </form>
+          <div class="welcome__how">
+            <h2>Как это работает</h2>
+            <ul class="welcome__steps">
+              <li class="welcome__step">
+                <span class="welcome__step-icon">📝</span>
+                <span>Ответьте на 11 вопросов</span>
+              </li>
+              <li class="welcome__step">
+                <span class="welcome__step-icon">📊</span>
+                <span>Получите персональный дашборд</span>
+              </li>
+              <li class="welcome__step">
+                <span class="welcome__step-icon">💞</span>
+                <span>Добавьте подрядчиков в избранное</span>
+              </li>
+            </ul>
+          </div>
+          <footer class="welcome__footer">By Lex</footer>
         </section>
       `;
-      const form = document.getElementById("welcome-form");
-      const groomInput = document.getElementById("groom-name");
-      const brideInput = document.getElementById("bride-name");
-      form.addEventListener("submit", (event) => {
-        event.preventDefault();
-        const groomName = groomInput.value.trim();
-        const brideName = brideInput.value.trim();
-        if (!groomName) {
-          groomInput.setCustomValidity("Введите имя жениха");
-          groomInput.reportValidity();
-          groomInput.setCustomValidity("");
-          groomInput.focus();
-          return;
-        }
-        if (!brideName) {
-          brideInput.setCustomValidity("Введите имя невесты");
-          brideInput.reportValidity();
-          brideInput.setCustomValidity("");
-          brideInput.focus();
-          return;
-        }
-        const now = Date.now();
-        const currentYear = new Date().getFullYear();
-        const profileData = this.state.profile || {
-          schemaVersion: 1,
-          weddingId: Date.now().toString(),
-          vibe: [],
-          style: "",
-          venueBooked: false,
-          city: "",
-          year: currentYear,
-          month: new Date().getMonth() + 1,
-          budgetRange: "",
-          guests: 50,
-          createdAt: now
-        };
-        const profile = {
-          ...profileData,
-          groomName,
-          brideName,
-          updatedAt: now
-        };
-        this.saveProfile(profile);
-        this.state.profile = profile;
-        location.hash = "#/quiz";
-      });
-      const dashboardBtn = document.getElementById("goto-dashboard");
-      if (dashboardBtn) {
-        dashboardBtn.addEventListener("click", () => {
-          location.hash = "#/dashboard";
+      const startBtn = document.getElementById("start-quiz");
+      if (startBtn) {
+        startBtn.addEventListener("click", () => {
+          this.createProfileIfMissing();
+          this.state.currentStep = 0;
+          location.hash = "#/quiz";
         });
       }
     },
@@ -710,6 +678,33 @@
       } catch (error) {
         console.error("Не удалось сохранить профиль", error);
       }
+    },
+    createProfileIfMissing() {
+      let profile = this.state.profile || this.loadProfile();
+      if (profile) {
+        this.state.profile = profile;
+        return profile;
+      }
+      const now = Date.now();
+      const currentYear = new Date().getFullYear();
+      profile = {
+        schemaVersion: 1,
+        weddingId: now.toString(),
+        groomName: "",
+        brideName: "",
+        vibe: [],
+        style: "",
+        venueBooked: false,
+        city: "",
+        year: currentYear,
+        month: new Date().getMonth() + 1,
+        budgetRange: "",
+        guests: 50,
+        createdAt: now,
+        updatedAt: now
+      };
+      this.saveProfile(profile);
+      return profile;
     },
     updateProfile(patch) {
       const current = this.state.profile || {};

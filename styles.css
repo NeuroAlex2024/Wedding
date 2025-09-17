@@ -46,6 +46,90 @@ p {
   box-shadow: 0 10px 25px rgba(47, 42, 59, 0.08);
 }
 
+.welcome {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+}
+
+.welcome__header {
+  display: grid;
+  gap: 2rem;
+  align-items: center;
+}
+
+.welcome__copy h1 {
+  font-size: clamp(2rem, 2.5vw + 1.5rem, 2.75rem);
+}
+
+.welcome__lead {
+  font-size: 1.1rem;
+  color: var(--muted);
+}
+
+.welcome__cta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.welcome__note {
+  margin: 0;
+  font-size: 0.9rem;
+  color: rgba(110, 103, 129, 0.8);
+}
+
+.welcome__hero {
+  display: flex;
+  justify-content: center;
+}
+
+.welcome__hero-graphic {
+  display: grid;
+  place-items: center;
+  font-size: clamp(3rem, 4vw + 2rem, 5rem);
+  width: clamp(160px, 30vw, 220px);
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, rgba(224, 122, 139, 0.4), rgba(224, 122, 139, 0));
+  box-shadow: inset 0 0 40px rgba(224, 122, 139, 0.35), 0 10px 25px rgba(224, 122, 139, 0.2);
+}
+
+.welcome__how h2 {
+  margin-bottom: 1.5rem;
+}
+
+.welcome__steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+}
+
+.welcome__step {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border-radius: 16px;
+  background: rgba(224, 122, 139, 0.08);
+  color: var(--txt);
+  font-weight: 600;
+}
+
+.welcome__step-icon {
+  font-size: 1.5rem;
+}
+
+.welcome__footer {
+  margin-top: auto;
+  text-align: right;
+  font-size: 0.85rem;
+  color: rgba(110, 103, 129, 0.8);
+}
+
 form {
   display: grid;
   gap: 1.5rem;
@@ -280,12 +364,6 @@ button.secondary:hover {
   margin-bottom: 2rem;
 }
 
-.welcome-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-}
-
 @media (max-width: 600px) {
   main#app {
     padding: 2.5rem 1rem 3rem;
@@ -310,5 +388,21 @@ button.secondary:hover {
 
   button {
     width: 100%;
+  }
+}
+
+@media (min-width: 760px) {
+  .welcome__header {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .welcome__steps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .welcome__step {
+    flex-direction: column;
+    text-align: center;
+    gap: 0.5rem;
   }
 }
