@@ -109,7 +109,7 @@
               <p class="welcome-note">Это бесплатно. Прогресс сохраняется.</p>
             </div>
             <div class="welcome-hero" role="presentation">
-              <img src="https://images.unsplash.com/photo-1520854221050-0f4caff449fb?auto=format&fit=crop&w=1200&q=80" alt="Счастливая пара на фоне горного озера" loading="lazy" decoding="async">
+              <img src="https://images.unsplash.com/photo-1591604466107-ec97de577aff?q=80&w=2071&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D" alt="Счастливая пара на фоне горного озера" loading="lazy" decoding="async">
             </div>
           </div>
           <div class="welcome-steps">
@@ -138,7 +138,6 @@
               </li>
             </ul>
           </div>
-          <p class="welcome-footer">By Lex</p>
         </section>
       `;
       const startButton = document.getElementById("start-quiz");

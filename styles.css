@@ -138,13 +138,6 @@ p {
   font-size: 1.5rem;
 }
 
-.welcome-footer {
-  margin: 0;
-  font-size: 0.85rem;
-  text-align: right;
-  color: rgba(47, 42, 59, 0.5);
-}
-
 form {
   display: grid;
   gap: 1.5rem;
