@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bridebook Россия — MVP</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <canvas id="confetti-canvas"></canvas>
+  <div id="modal-overlay" aria-hidden="true">
+    <div id="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <header>
+        <h2 id="modal-title">Скоро появится</h2>
+      </header>
+      <div class="modal-body" id="modal-body"></div>
+      <footer>
+        <button type="button" id="modal-close">Понятно</button>
+      </footer>
+    </div>
+  </div>
+  <main id="app" role="main"></main>
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
