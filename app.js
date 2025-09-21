@@ -534,7 +534,7 @@
       const summaryLine = summaryItems.length
         ? `<div class="summary-line">${summaryItems.map((item) => `<span>${item}</span>`).join("")}</div>`
         : "";
-      const summaryFallback = `<p class="dashboard-intro">Ваши ответы появятся здесь сразу после прохождения теста.</p>`;
+      const summaryFallback = "";
       const introBlock = hasProfile ? summaryLine || summaryFallback : "";
       const heading = hasProfile
         ? `${profile.groomName || "Жених"} + ${profile.brideName || "Невеста"}, добро пожаловать!`
@@ -614,7 +614,6 @@
             <section class="dashboard-module checklist" data-area="checklist" aria-labelledby="checklist-title">
               <div class="module-header">
                 <h2 id="checklist-title">Чек лист</h2>
-                <p>Отмечайте готовые задачи и добавляйте новые пункты по ходу подготовки.</p>
               </div>
               <ul class="checklist-items">
                 ${checklistItems}
@@ -628,7 +627,6 @@
             <section class="dashboard-module tools" data-area="tools" aria-labelledby="tools-title">
               <div class="module-header">
                 <h2 id="tools-title">Инструменты</h2>
-                <p>Все сервисы в одном месте — кликайте, чтобы открыть.</p>
               </div>
               <div class="tools-grid">
                 ${toolsCards}
@@ -637,7 +635,6 @@
             <section class="dashboard-module budget" data-area="budget" aria-labelledby="budget-title">
               <div class="module-header">
                 <h2 id="budget-title">Бюджет</h2>
-                <p>Следите за распределением средств и добавляйте новые статьи расходов.</p>
               </div>
               <div class="budget-summary">
                 <span class="budget-summary__label">Заложено</span>
