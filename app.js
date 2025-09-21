@@ -24,7 +24,9 @@
       currentRoute: "#/dashboard",
       currentStep: 0,
       modalOpen: false,
-      lastFocused: null
+      lastFocused: null,
+      lastBudgetTotal: 0,
+      lastBudgetTarget: null
     },
     init() {
       this.cacheDom();
@@ -476,12 +478,20 @@
         month: new Date().getMonth() + 1,
         budgetRange: "",
         guests: 50,
+        tasks: DEFAULT_TASKS.map((text, index) => ({
+          id: `task-${index + 1}`,
+          text,
+          done: false
+        })),
+        budgetItems: DEFAULT_BUDGET_ITEMS.map((item) => ({ ...item })),
+        budgetTarget: 800000,
         createdAt: now,
         updatedAt: now
       };
       this.saveProfile(profile);
     },
     renderDashboard() {
+      this.ensureProfile();
       const profile = this.state.profile;
       const hasProfile = Boolean(profile);
       const summaryItems = [];
@@ -508,18 +518,20 @@
       const heading = hasProfile
         ? `${profile.groomName || "Жених"} + ${profile.brideName || "Невеста"}, добро пожаловать!`
         : "Планирование свадьбы без стресса";
+      const navLine = `
+        <nav class="dashboard-nav" aria-label="Основные разделы">
+          ${DASHBOARD_NAV_ITEMS.map((item) => `<button type="button" class="dashboard-nav__item" data-nav="${item.id}" data-title="${item.label}">${item.label}</button>`).join("")}
+        </nav>
+      `;
       const heroImage = `
         <div class="dashboard-hero-image">
           <img src="https://images.unsplash.com/photo-1542379510-1026e928ed4f?q=80&w=3118&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D" alt="Счастливая пара на свадьбе">
         </div>
       `;
       const daysBlock = hasProfile ? this.renderCountdown(profile) : "";
-      const cards = MODULE_CARDS.map((card) => `
-        <article class="dashboard-card ${card.size === "lg" ? "lg" : ""}" tabindex="0" data-card="${card.id}" data-title="${card.title}">
-          <h3>${card.title}</h3>
-          <p>Персональные рекомендации появятся скоро.</p>
-        </article>
-      `).join("");
+      const checklistModule = this.renderChecklistModule(profile);
+      const toolsModule = this.renderToolsModule();
+      const budgetModule = this.renderBudgetModule(profile);
       const actionsBlock = hasProfile
         ? `<div class="actions" style="margin-top:2rem;">
             <button type="button" id="edit-quiz">Редактировать ответы теста</button>
@@ -527,43 +539,282 @@
         : "";
       this.appEl.innerHTML = `
         <section class="card">
-          ${heroImage}
           <h1>${heading}</h1>
           ${introBlock}
+          ${navLine}
+          ${heroImage}
           ${daysBlock}
-          <div class="dashboard-grid">${cards}</div>
+          <div class="dashboard-modules">
+            ${checklistModule}
+            ${toolsModule}
+            ${budgetModule}
+          </div>
           ${actionsBlock}
         </section>
       `;
-      const handleCardActivation = (event, card) => {
-        if (!this.state.profile) {
-          if (event) {
-            event.preventDefault();
-          }
-          this.state.currentStep = 0;
-          this.ensureProfile();
-          location.hash = "#/quiz";
-          return;
-        }
-        if (event && event.type === "keydown") {
-          event.preventDefault();
-        }
-        this.openModal(card);
-      };
-      this.appEl.querySelectorAll(".dashboard-card").forEach((card) => {
-        card.addEventListener("click", (event) => handleCardActivation(event, card));
-        card.addEventListener("keydown", (event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            handleCardActivation(event, card);
-          }
-        });
-      });
+      this.bindNavModule();
+      this.bindToolsModule();
+      this.bindChecklistModule();
+      this.bindBudgetModule();
       if (hasProfile) {
         document.getElementById("edit-quiz").addEventListener("click", () => {
           this.state.currentStep = 0;
           location.hash = "#/quiz";
         });
       }
+    },
+    bindNavModule() {
+      this.appEl.querySelectorAll(".dashboard-nav__item").forEach((button) => {
+        button.addEventListener("click", () => this.openModal(button));
+        button.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            this.openModal(button);
+          }
+        });
+      });
+    },
+    renderToolsModule() {
+      return `
+        <section class="module module-tools" aria-labelledby="tools-title">
+          <header class="module-header">
+            <h2 id="tools-title">Инструменты</h2>
+            <p class="module-subtitle">Все основные разделы планирования в одном месте</p>
+          </header>
+          <div class="tools-grid">
+            ${TOOL_MODULE_ITEMS.map(
+              (tool) => `
+                <article class="tool-card" tabindex="0" data-tool="${tool.id}" data-title="${tool.title}">
+                  <h3>${tool.title}</h3>
+                  <p>${tool.description}</p>
+                </article>
+              `
+            ).join("")}
+          </div>
+        </section>
+      `;
+    },
+    bindToolsModule() {
+      this.appEl.querySelectorAll(".tool-card").forEach((card) => {
+        card.addEventListener("click", () => this.openModal(card));
+        card.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            this.openModal(card);
+          }
+        });
+      });
+    },
+    renderChecklistModule(profile) {
+      const tasks = this.ensureTasks(profile);
+      const completed = tasks.filter((task) => task.done).length;
+      const total = tasks.length;
+      const progress = total ? Math.round((completed / total) * 100) : 0;
+      return `
+        <section class="module module-checklist" aria-labelledby="checklist-title">
+          <header class="module-header">
+            <h2 id="checklist-title">Чек-лист</h2>
+            <p class="module-subtitle">${completed} из ${total} задач выполнено</p>
+            <div class="checklist-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}">
+              <div class="checklist-progress__bar" style="width: ${progress}%"></div>
+            </div>
+          </header>
+          <ul class="checklist-items">
+            ${tasks
+              .map(
+                (task) => `
+                  <li class="checklist-item">
+                    <label class="checklist-label">
+                      <input type="checkbox" data-task-id="${task.id}" ${task.done ? "checked" : ""}>
+                      <span>${task.text}</span>
+                    </label>
+                  </li>
+                `
+              )
+              .join("")}
+          </ul>
+          <form class="checklist-form" id="checklist-form">
+            <input type="text" name="task" id="new-task" placeholder="Добавить задачу" autocomplete="off" required>
+            <button type="submit" class="checklist-add" aria-label="Добавить задачу">
+              <span aria-hidden="true">Добавить</span>
+            </button>
+          </form>
+        </section>
+      `;
+    },
+    bindChecklistModule() {
+      const checklistForm = this.appEl.querySelector("#checklist-form");
+      if (checklistForm) {
+        checklistForm.addEventListener("submit", (event) => {
+          event.preventDefault();
+          const input = checklistForm.querySelector("#new-task");
+          if (!input.value.trim()) return;
+          const tasks = this.ensureTasks(this.state.profile);
+          const nextTasks = [
+            ...tasks,
+            {
+              id: this.generateId("task"),
+              text: input.value.trim(),
+              done: false
+            }
+          ];
+          this.updateProfile({ tasks: nextTasks });
+          this.renderDashboard();
+        });
+      }
+      this.appEl.querySelectorAll('input[type="checkbox"][data-task-id]').forEach((checkbox) => {
+        checkbox.addEventListener("change", () => {
+          const taskId = checkbox.getAttribute("data-task-id");
+          const tasks = this.ensureTasks(this.state.profile).map((task) =>
+            task.id === taskId ? { ...task, done: checkbox.checked } : task
+          );
+          this.updateProfile({ tasks });
+          this.renderDashboard();
+        });
+      });
+    },
+    ensureTasks(profile) {
+      if (profile && Array.isArray(profile.tasks) && profile.tasks.length) {
+        return profile.tasks;
+      }
+      const fallback = DEFAULT_TASKS.map((text, index) => ({
+        id: `task-${index + 1}`,
+        text,
+        done: false
+      }));
+      this.updateProfile({ tasks: fallback });
+      return fallback;
+    },
+    renderBudgetModule(profile) {
+      const items = this.ensureBudgetItems(profile);
+      const total = this.getBudgetTotal(items);
+      const target = this.getBudgetTarget(profile, total);
+      const ratio = target ? total / target : 0;
+      const clampedRatio = Math.max(Math.min(ratio, 1), 0);
+      return `
+        <section class="module module-budget" aria-labelledby="budget-title">
+          <header class="module-header">
+            <h2 id="budget-title">Бюджет</h2>
+            <p class="module-subtitle">Планирование расходов в реальном времени</p>
+          </header>
+          <div class="budget-progress" id="budget-progress" data-progress="${ratio}" style="--progress: ${clampedRatio};">
+            <div class="budget-progress__ring"></div>
+            <div class="budget-progress__content">
+              <span class="budget-progress__amount" data-total="${total}">${this.formatCurrency(total)}</span>
+              <span class="budget-progress__target">Цель: ${this.formatCurrency(target)}</span>
+            </div>
+          </div>
+          <ul class="budget-list">
+            ${items
+              .map(
+                (item) => `
+                  <li class="budget-list__item">
+                    <span class="budget-list__label">${item.label}</span>
+                    <span class="budget-list__amount">${this.formatCurrency(item.amount)}</span>
+                  </li>
+                `
+              )
+              .join("")}
+          </ul>
+          <form class="budget-form" id="budget-form">
+            <input type="text" name="label" id="budget-label" placeholder="Статья расходов" required>
+            <input type="number" name="amount" id="budget-amount" placeholder="Сумма" min="0" step="1000" required>
+            <button type="submit" class="budget-add">Добавить</button>
+          </form>
+        </section>
+      `;
+    },
+    bindBudgetModule() {
+      const form = this.appEl.querySelector("#budget-form");
+      if (form) {
+        form.addEventListener("submit", (event) => {
+          event.preventDefault();
+          const labelInput = form.querySelector("#budget-label");
+          const amountInput = form.querySelector("#budget-amount");
+          const label = labelInput.value.trim();
+          const amount = Number.parseFloat(amountInput.value.replace(/\s/g, ""));
+          if (!label || Number.isNaN(amount) || amount <= 0) {
+            return;
+          }
+          const items = this.ensureBudgetItems(this.state.profile);
+          const nextItems = [
+            ...items,
+            {
+              id: this.generateId("budget"),
+              label,
+              amount
+            }
+          ];
+          this.updateProfile({ budgetItems: nextItems });
+          labelInput.value = "";
+          amountInput.value = "";
+          this.renderDashboard();
+        });
+      }
+      const progressEl = this.appEl.querySelector("#budget-progress");
+      if (progressEl) {
+        const total = Number(progressEl.querySelector(".budget-progress__amount").dataset.total || 0);
+        const ratio = Number(progressEl.dataset.progress || 0);
+        const target = this.getBudgetTarget(this.state.profile, total);
+        this.animateBudget(total, target, ratio, progressEl);
+      }
+    },
+    ensureBudgetItems(profile) {
+      if (profile && Array.isArray(profile.budgetItems) && profile.budgetItems.length) {
+        return profile.budgetItems;
+      }
+      const fallback = DEFAULT_BUDGET_ITEMS.map((item) => ({ ...item }));
+      this.updateProfile({ budgetItems: fallback });
+      return fallback;
+    },
+    getBudgetTotal(items) {
+      return items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    },
+    getBudgetTarget(profile, total) {
+      if (profile && profile.budgetTarget) {
+        return profile.budgetTarget;
+      }
+      const fromRange = profile && profile.budgetRange ? BUDGET_RANGE_TARGETS[profile.budgetRange] : null;
+      if (fromRange) {
+        return fromRange;
+      }
+      return Math.max(total * 1.2, 500000);
+    },
+    animateBudget(total, target, ratio, progressEl) {
+      const amountEl = progressEl.querySelector(".budget-progress__amount");
+      const previousTotal = this.state.lastBudgetTotal || 0;
+      const previousTarget = this.state.lastBudgetTarget || target;
+      const startTime = performance.now();
+      const duration = 600;
+      const startRatio = previousTarget ? previousTotal / previousTarget : 0;
+      const endRatio = target ? ratio : 0;
+
+      const step = (time) => {
+        const progress = Math.min((time - startTime) / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        const currentTotal = previousTotal + (total - previousTotal) * eased;
+        const currentRatio = startRatio + (endRatio - startRatio) * eased;
+        amountEl.textContent = this.formatCurrency(currentTotal);
+        progressEl.style.setProperty("--progress", Math.max(Math.min(currentRatio, 1), 0));
+        if (progress < 1) {
+          requestAnimationFrame(step);
+        }
+      };
+
+      requestAnimationFrame(step);
+      this.state.lastBudgetTotal = total;
+      this.state.lastBudgetTarget = target;
+    },
+    formatCurrency(value) {
+      return new Intl.NumberFormat("ru-RU", {
+        style: "currency",
+        currency: "RUB",
+        maximumFractionDigits: value >= 100000 ? 0 : 2
+      }).format(Math.max(0, value));
+    },
+    generateId(prefix) {
+      const unique = Math.random().toString(16).slice(2, 8);
+      return `${prefix}-${Date.now().toString(36)}-${unique}`;
     },
     renderCountdown(profile) {
       if (!profile.year || !profile.month) {
@@ -665,11 +916,28 @@
         if (!profile || profile.schemaVersion !== 1) {
           return null;
         }
-        return profile;
+        return this.normalizeProfile(profile);
       } catch (error) {
         console.error("Не удалось загрузить профиль", error);
         return null;
       }
+    },
+    normalizeProfile(profile) {
+      if (!profile) return null;
+      if (!Array.isArray(profile.tasks) || !profile.tasks.length) {
+        profile.tasks = DEFAULT_TASKS.map((text, index) => ({
+          id: `task-${index + 1}`,
+          text,
+          done: false
+        }));
+      }
+      if (!Array.isArray(profile.budgetItems) || !profile.budgetItems.length) {
+        profile.budgetItems = DEFAULT_BUDGET_ITEMS.map((item) => ({ ...item }));
+      }
+      if (!profile.budgetTarget) {
+        profile.budgetTarget = this.getBudgetTarget(profile, this.getBudgetTotal(profile.budgetItems));
+      }
+      return profile;
     },
     saveProfile(profile) {
       try {
@@ -686,6 +954,12 @@
         ...patch,
         updatedAt: Date.now()
       };
+      if (patch && Object.prototype.hasOwnProperty.call(patch, "budgetRange")) {
+        const target = patch.budgetRange ? BUDGET_RANGE_TARGETS[patch.budgetRange] : null;
+        if (target) {
+          next.budgetTarget = target;
+        }
+      }
       this.saveProfile(next);
     },
     clearProfile() {
