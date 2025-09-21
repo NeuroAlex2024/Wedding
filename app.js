@@ -664,13 +664,19 @@
                     <span class="budget-visual__dot" style="--dot-color: ${entry.color}" aria-hidden="true"></span>
                     <span class="budget-visual__title">${this.escapeHtml(entry.title || "")}</span>
                     <span class="budget-visual__amount" id="${this.escapeHtml(displayId)}" data-amount="${amount}">${this.formatCurrency(amount)}</span>
+                    <div class="budget-visual__actions">
+                      <button type="button" class="budget-visual__action" data-action="edit" data-entry-id="${this.escapeHtml(entry.id)}" aria-label="Редактировать статью">
+                        <span aria-hidden="true">✏️</span>
+                        <span class="sr-only">Изменить</span>
+                      </button>
+                      <button type="button" class="budget-visual__action budget-visual__action--danger" data-action="delete" data-entry-id="${this.escapeHtml(entry.id)}" aria-label="Удалить статью">
+                        <span aria-hidden="true">🗑️</span>
+                        <span class="sr-only">Удалить</span>
+                      </button>
+                    </div>
                   </div>
                   <div class="budget-visual__track">
                     <div class="budget-visual__bar" data-value="${amount}" data-total="${totalBudget}" style="--bar-color: ${entry.color}"></div>
-                  </div>
-                  <div class="budget-visual__actions">
-                    <button type="button" class="budget-visual__action" data-action="edit" data-entry-id="${this.escapeHtml(entry.id)}">Изменить</button>
-                    <button type="button" class="budget-visual__action budget-visual__action--danger" data-action="delete" data-entry-id="${this.escapeHtml(entry.id)}">Удалить</button>
                   </div>
                 </div>
               `;
