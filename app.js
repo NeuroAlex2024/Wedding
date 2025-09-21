@@ -295,11 +295,15 @@
           }
         },
         (container, profile) => {
+          const initialValue = Number.isFinite(profile.guests) ? profile.guests : 50;
+          const initialLabel = Number.isFinite(profile.guests)
+            ? `${profile.guests} гостей`
+            : "Выберите количество гостей";
           container.innerHTML = `
             <div>
               <label for="quiz-guests">Сколько гостей ожидаете?</label>
-              <input id="quiz-guests" type="range" min="10" max="100" step="1" value="${profile.guests || 50}">
-              <div class="range-display">${profile.guests || 50} гостей</div>
+              <input id="quiz-guests" type="range" min="10" max="100" step="1" value="${initialValue}">
+              <div class="range-display">${initialLabel}</div>
             </div>
           `;
           const range = container.querySelector("input");
@@ -311,7 +315,6 @@
           range.addEventListener("input", (event) => {
             update(event.target.value);
           });
-          update(range.value);
         },
         (container, profile) => {
           const summary = this.buildSummary(profile);
@@ -442,7 +445,7 @@
           break;
         }
         case 9: {
-          if (!profile.guests) {
+          if (!Number.isFinite(profile.guests) || profile.guests <= 0) {
             this.quizMessageEl.textContent = "Укажите количество гостей.";
             const range = document.getElementById("quiz-guests");
             if (range) range.focus();
@@ -457,8 +460,7 @@
       return true;
     },
     finishQuiz() {
-      const now = Date.now();
-      this.updateProfile({ updatedAt: now });
+      this.updateProfile({ quizCompleted: true });
       this.triggerConfetti();
       setTimeout(() => {
         location.hash = "#/dashboard";
@@ -478,7 +480,8 @@
         year: currentYear,
         month: new Date().getMonth() + 1,
         budgetRange: "",
-        guests: 50,
+        guests: null,
+        quizCompleted: false,
         createdAt: now,
         updatedAt: now,
         checklist: DEFAULT_CHECKLIST_ITEMS.map((item) => ({ ...item })),
@@ -490,6 +493,15 @@
       const profile = this.state.profile;
       if (!profile) return;
       let updated = false;
+      const quizDone = this.isQuizCompleted(profile);
+      if (!quizDone && Number.isFinite(profile.guests)) {
+        profile.guests = null;
+        updated = true;
+      }
+      if (typeof profile.quizCompleted !== "boolean") {
+        profile.quizCompleted = quizDone;
+        updated = true;
+      }
       if (!Array.isArray(profile.checklist) || profile.checklist.length === 0) {
         profile.checklist = DEFAULT_CHECKLIST_ITEMS.map((item) => ({ ...item }));
         updated = true;
@@ -507,6 +519,7 @@
       this.ensureDashboardData();
       const profile = this.state.profile;
       const hasProfile = Boolean(profile);
+      const quizCompleted = this.isQuizCompleted(profile);
       const summaryItems = [];
       if (hasProfile && profile.vibe && profile.vibe.length) {
         summaryItems.push(`Атмосфера: ${profile.vibe.join(", ")}`);
@@ -517,7 +530,7 @@
       if (hasProfile && profile.city) {
         summaryItems.push(`Город: ${profile.city}`);
       }
-      if (hasProfile && profile.guests) {
+      if (quizCompleted && Number.isFinite(profile.guests)) {
         summaryItems.push(`Гостей: ${profile.guests}`);
       }
       if (hasProfile && profile.budgetRange) {
@@ -531,6 +544,9 @@
       const heading = hasProfile
         ? `${profile.groomName || "Жених"} + ${profile.brideName || "Невеста"}, добро пожаловать!`
         : "Планирование свадьбы без стресса";
+      const subheading = hasProfile
+        ? '<p class="dashboard-subheading">Здесь вы можете собрать все необходимое для свадьбы мечты.</p>'
+        : "";
       const heroImage = `
         <div class="dashboard-hero-image">
           <img src="https://images.unsplash.com/photo-1542379510-1026e928ed4f?q=80&w=3118&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D" alt="Счастливая пара на свадьбе">
@@ -582,7 +598,7 @@
           `;
         })
         .join("");
-      const actionsBlock = hasProfile
+      const actionsBlock = quizCompleted
         ? `<div class="actions dashboard-actions">
             <button type="button" id="edit-quiz">Редактировать ответы теста</button>
           </div>`
@@ -595,13 +611,14 @@
           ${heroImage}
           <header class="dashboard-header">
             <h1>${heading}</h1>
+            ${subheading}
             ${introBlock}
             ${daysBlock}
           </header>
           <div class="dashboard-modules">
             <section class="dashboard-module checklist" data-area="checklist" aria-labelledby="checklist-title">
               <div class="module-header">
-                <h2 id="checklist-title">Контрольный список</h2>
+                <h2 id="checklist-title">Чек лист</h2>
                 <p>Отмечайте готовые задачи и добавляйте новые пункты по ходу подготовки.</p>
               </div>
               <ul class="checklist-items">
@@ -649,6 +666,18 @@
         </section>
       `;
       this.bindDashboardEvents(previousTotal, totalBudget);
+    },
+    isQuizCompleted(profile) {
+      if (!profile) {
+        return false;
+      }
+      if (typeof profile.quizCompleted === "boolean") {
+        return profile.quizCompleted;
+      }
+      const requiredValues = [profile.groomName, profile.brideName, profile.style, profile.city, profile.budgetRange];
+      const hasRequiredText = requiredValues.every((value) => Boolean(value && String(value).trim().length));
+      const hasGuests = Number.isFinite(profile.guests) && profile.guests > 0;
+      return hasRequiredText && hasGuests;
     },
     bindDashboardEvents(previousTotal, totalBudget) {
       this.appEl.querySelectorAll("[data-modal-target]").forEach((element) => {

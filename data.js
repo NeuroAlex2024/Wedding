@@ -46,7 +46,7 @@ const DASHBOARD_NAV_ITEMS = [
   { id: "venues", title: "Место проведения" },
   { id: "vendors", title: "Подрядчики" },
   { id: "tools", title: "Инструменты" },
-  { id: "checklist", title: "Контрольный список" },
+  { id: "checklist", title: "Чек лист" },
   { id: "budget", title: "Бюджет" },
   { id: "blog", title: "Блог" }
 ];
