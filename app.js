@@ -17,6 +17,7 @@
   ];
 
   const currencyFormatter = new Intl.NumberFormat("ru-RU");
+  const BUDGET_COLORS = ["#E07A8B", "#F4A259", "#5B8E7D", "#7A77B9", "#F1BF98", "#74D3AE"];
 
   const App = {
     storageKey,
@@ -27,7 +28,9 @@
       currentStep: 0,
       modalOpen: false,
       lastFocused: null,
-      lastBudgetTotal: 0
+      lastBudgetTotal: 0,
+      budgetEditingId: null,
+      budgetEditingDraft: null
     },
     init() {
       this.cacheDom();
@@ -491,6 +494,7 @@
       const profile = this.state.profile;
       if (!profile) return;
       let updated = false;
+      const timestamp = Date.now();
       if (!Array.isArray(profile.checklist) || profile.checklist.length === 0) {
         profile.checklist = DEFAULT_CHECKLIST_ITEMS.map((item) => ({ ...item }));
         updated = true;
@@ -498,6 +502,30 @@
       if (!Array.isArray(profile.budgetEntries) || profile.budgetEntries.length === 0) {
         profile.budgetEntries = DEFAULT_BUDGET_ENTRIES.map((item) => ({ ...item }));
         updated = true;
+      } else if (Array.isArray(profile.budgetEntries)) {
+        const sanitizedBudget = profile.budgetEntries
+          .filter((entry) => entry && typeof entry === "object")
+          .map((entry, index) => {
+            const amountValue = Number(entry.amount);
+            const amount = Number.isFinite(amountValue) ? Math.max(0, Math.round(amountValue)) : 0;
+            const id = typeof entry.id === "string" && entry.id.trim().length
+              ? entry.id
+              : `budget-${timestamp}-${index}`;
+            const title = typeof entry.title === "string" ? entry.title : String(entry.title || "");
+            if (entry.amount !== amount || entry.id !== id || entry.title !== title) {
+              updated = true;
+            }
+            return {
+              ...entry,
+              id,
+              amount,
+              title
+            };
+          });
+        if (sanitizedBudget.length !== profile.budgetEntries.length) {
+          updated = true;
+        }
+        profile.budgetEntries = sanitizedBudget;
       }
       if (typeof profile.quizCompleted !== "boolean") {
         profile.quizCompleted = Boolean(
@@ -571,28 +599,82 @@
           `;
         })
         .join("");
-      const budgetEntries = profile && Array.isArray(profile.budgetEntries) ? profile.budgetEntries : DEFAULT_BUDGET_ENTRIES;
-      const totalBudget = budgetEntries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+      const budgetEntries = Array.isArray(profile?.budgetEntries) ? profile.budgetEntries : [];
+      const decoratedBudgetEntries = budgetEntries.map((entry, index) => {
+        const amountValue = Number(entry.amount);
+        const amount = Number.isFinite(amountValue) ? Math.max(0, Math.round(amountValue)) : 0;
+        const color = BUDGET_COLORS[index % BUDGET_COLORS.length];
+        return {
+          ...entry,
+          color,
+          amount
+        };
+      });
+      const totalBudget = decoratedBudgetEntries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
       const previousTotal = this.state.lastBudgetTotal || 0;
       this.state.lastBudgetTotal = totalBudget;
-      const budgetVisual = budgetEntries
-        .map((entry, index) => {
-          const value = Number(entry.amount || 0);
-          const amount = Number.isFinite(value) ? value : 0;
-          const displayId = `budget-amount-${entry.id || index}`;
-          return `
-            <div class="budget-visual__item">
-              <div class="budget-visual__info">
-                <span class="budget-visual__title">${entry.title}</span>
-                <span class="budget-visual__amount" id="${displayId}" data-amount="${amount}">${this.formatCurrency(amount)}</span>
-              </div>
-              <div class="budget-visual__track">
-                <div class="budget-visual__bar" data-value="${amount}" data-total="${totalBudget}"></div>
-              </div>
-            </div>
-          `;
-        })
-        .join("");
+      const positiveEntries = decoratedBudgetEntries.filter((entry) => Number(entry.amount) > 0);
+      let startAngle = 0;
+      const segments = positiveEntries.map((entry, index) => {
+        const fraction = totalBudget > 0 ? Number(entry.amount) / totalBudget : 0;
+        const endAngle = index === positiveEntries.length - 1 ? 360 : startAngle + fraction * 360;
+        const segment = `${entry.color} ${startAngle.toFixed(2)}deg ${endAngle.toFixed(2)}deg`;
+        startAngle = endAngle;
+        return segment;
+      });
+      const chartBackground = segments.length
+        ? `conic-gradient(from -90deg, ${segments.join(", ")})`
+        : "conic-gradient(from -90deg, rgba(224, 122, 139, 0.25) 0deg 360deg)";
+      const budgetVisual = decoratedBudgetEntries.length
+        ? decoratedBudgetEntries
+            .map((entry, index) => {
+              const amount = Number(entry.amount || 0);
+              const displayId = `budget-amount-${entry.id || index}`;
+              const isEditing = this.state.budgetEditingId === entry.id;
+              if (isEditing) {
+                const draft = this.state.budgetEditingDraft || {
+                  title: entry.title || "",
+                  amount: String(amount ?? "")
+                };
+                return `
+                  <div class="budget-visual__item budget-visual__item--editing" data-entry-id="${this.escapeHtml(entry.id)}">
+                    <form class="budget-visual__edit" data-entry-id="${this.escapeHtml(entry.id)}">
+                      <div class="budget-visual__edit-fields">
+                        <span class="budget-visual__dot" style="--dot-color: ${entry.color}" aria-hidden="true"></span>
+                        <div class="budget-visual__field">
+                          <label for="budget-edit-title-${this.escapeHtml(entry.id)}" class="sr-only">Название статьи</label>
+                          <input id="budget-edit-title-${this.escapeHtml(entry.id)}" type="text" name="title" value="${this.escapeHtml(draft.title || "")}" required>
+                        </div>
+                        <div class="budget-visual__field">
+                          <label for="budget-edit-amount-${this.escapeHtml(entry.id)}" class="sr-only">Сумма</label>
+                          <input id="budget-edit-amount-${this.escapeHtml(entry.id)}" type="number" name="amount" value="${this.escapeHtml(String(draft.amount ?? ""))}" min="0" step="1000" required>
+                        </div>
+                      </div>
+                      <div class="budget-visual__edit-actions">
+                        <button type="submit">Сохранить</button>
+                        <button type="button" class="secondary" data-action="cancel-edit">Отменить</button>
+                      </div>
+                    </form>
+                  </div>
+                `;
+              }
+              return `
+                <div class="budget-visual__item" data-entry-id="${this.escapeHtml(entry.id)}">
+                  <div class="budget-visual__info">
+                    <span class="budget-visual__dot" style="--dot-color: ${entry.color}" aria-hidden="true"></span>
+                    <span class="budget-visual__title">${this.escapeHtml(entry.title || "")}</span>
+                    <span class="budget-visual__amount" id="${this.escapeHtml(displayId)}" data-amount="${amount}">${this.formatCurrency(amount)}</span>
+                    <button type="button" class="budget-visual__icon" data-action="edit" data-entry-id="${this.escapeHtml(entry.id)}" aria-label="Редактировать статью">✏️</button>
+                    <button type="button" class="budget-visual__icon budget-visual__icon--danger" data-action="delete" data-entry-id="${this.escapeHtml(entry.id)}" aria-label="Удалить статью">🗑️</button>
+                  </div>
+                  <div class="budget-visual__track">
+                    <div class="budget-visual__bar" data-value="${amount}" data-total="${totalBudget}" style="--bar-color: ${entry.color}"></div>
+                  </div>
+                </div>
+              `;
+            })
+            .join("")
+        : '<p class="budget-empty">Добавьте статьи, чтобы увидеть распределение бюджета.</p>';
       const actionsBlock = quizCompleted
         ? `<div class="actions dashboard-actions">
             <button type="button" id="edit-quiz">Редактировать ответы теста</button>
@@ -637,8 +719,11 @@
                 <h2 id="budget-title">Бюджет</h2>
               </div>
               <div class="budget-summary">
-                <span class="budget-summary__label">Заложено</span>
-                <span class="budget-summary__value" id="budget-total" data-previous="${previousTotal}">${this.formatCurrency(previousTotal)}</span>
+                <div class="budget-summary__chart" role="img" aria-label="Итоговый бюджет: ${this.formatCurrency(totalBudget)}" style="--budget-chart-bg: ${chartBackground};">
+                  <div class="budget-summary__total">
+                    <span class="budget-summary__value" id="budget-total" data-previous="${previousTotal}">${this.formatCurrency(totalBudget)}</span>
+                  </div>
+                </div>
               </div>
               <div class="budget-visual">
                 ${budgetVisual}
@@ -710,6 +795,64 @@
           this.addBudgetEntry(title, Math.round(amount));
         });
       }
+      this.appEl.querySelectorAll(".budget-visual__icon").forEach((button) => {
+        button.addEventListener("click", () => {
+          const entryId = button.dataset.entryId;
+          const action = button.dataset.action;
+          if (!entryId || !action) return;
+          if (action === "edit") {
+            this.startBudgetEdit(entryId);
+          } else if (action === "delete") {
+            this.deleteBudgetEntry(entryId);
+          }
+        });
+      });
+      this.appEl.querySelectorAll(".budget-visual__edit").forEach((form) => {
+        form.addEventListener("submit", (event) => {
+          event.preventDefault();
+          const entryId = form.dataset.entryId;
+          if (!entryId) return;
+          const titleInput = form.querySelector("input[name='title']");
+          const amountInput = form.querySelector("input[name='amount']");
+          if (!titleInput || !amountInput) return;
+          const title = titleInput.value.trim();
+          const amount = Number(amountInput.value);
+          if (!title) {
+            titleInput.focus();
+            return;
+          }
+          if (!Number.isFinite(amount) || amount <= 0) {
+            amountInput.focus();
+            return;
+          }
+          this.updateBudgetEntry(entryId, title, amount);
+        });
+        const titleField = form.querySelector("input[name='title']");
+        const amountField = form.querySelector("input[name='amount']");
+        if (titleField && amountField) {
+          const updateDraft = () => {
+            this.state.budgetEditingDraft = {
+              title: titleField.value,
+              amount: amountField.value
+            };
+          };
+          titleField.addEventListener("input", updateDraft);
+          amountField.addEventListener("input", updateDraft);
+        }
+      });
+      this.appEl.querySelectorAll("[data-action='cancel-edit']").forEach((button) => {
+        button.addEventListener("click", () => {
+          this.cancelBudgetEdit();
+        });
+      });
+      const editingForm = this.appEl.querySelector(".budget-visual__edit");
+      if (editingForm) {
+        const titleInput = editingForm.querySelector("input[name='title']");
+        if (titleInput) {
+          titleInput.focus();
+          titleInput.select();
+        }
+      }
       const editButton = document.getElementById("edit-quiz");
       if (editButton) {
         editButton.addEventListener("click", () => {
@@ -769,8 +912,58 @@
           amount: Math.max(0, amount)
         }
       ];
+      this.resetBudgetEditing();
       this.updateProfile({ budgetEntries: next });
       this.renderDashboard();
+    },
+    startBudgetEdit(entryId) {
+      if (!entryId) return;
+      const entries = Array.isArray(this.state.profile?.budgetEntries) ? this.state.profile.budgetEntries : [];
+      const entry = entries.find((item) => item && item.id === entryId);
+      if (!entry) return;
+      this.state.budgetEditingId = entryId;
+      this.state.budgetEditingDraft = {
+        title: entry.title || "",
+        amount: entry.amount != null ? String(entry.amount) : ""
+      };
+      this.renderDashboard();
+    },
+    updateBudgetEntry(entryId, title, amount) {
+      if (!entryId) return;
+      const entries = Array.isArray(this.state.profile?.budgetEntries) ? this.state.profile.budgetEntries : [];
+      const normalizedAmount = Math.max(0, Math.round(Number(amount)));
+      const next = entries.map((entry) =>
+        entry.id === entryId
+          ? {
+              ...entry,
+              title,
+              amount: normalizedAmount
+            }
+          : entry
+      );
+      this.resetBudgetEditing();
+      this.updateProfile({ budgetEntries: next });
+      this.renderDashboard();
+    },
+    deleteBudgetEntry(entryId) {
+      if (!entryId) return;
+      const entries = Array.isArray(this.state.profile?.budgetEntries) ? this.state.profile.budgetEntries : [];
+      const next = entries.filter((entry) => entry.id !== entryId);
+      if (next.length === entries.length) {
+        return;
+      }
+      this.resetBudgetEditing();
+      this.updateProfile({ budgetEntries: next });
+      this.renderDashboard();
+    },
+    cancelBudgetEdit() {
+      if (!this.state.budgetEditingId) return;
+      this.resetBudgetEditing();
+      this.renderDashboard();
+    },
+    resetBudgetEditing() {
+      this.state.budgetEditingId = null;
+      this.state.budgetEditingDraft = null;
     },
     animateBudget(previousTotal, totalBudget) {
       const totalEl = document.getElementById("budget-total");
@@ -806,6 +999,14 @@
     formatCurrency(value) {
       const safeValue = Number.isFinite(value) ? value : 0;
       return `${currencyFormatter.format(Math.max(0, Math.round(safeValue)))}` + " ₽";
+    },
+    escapeHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
     },
     renderCountdown(profile) {
       if (!profile.year || !profile.month) {
