@@ -62,6 +62,80 @@
       });
       this.modalCloseBtn.addEventListener("click", () => this.closeModal());
     },
+    generateId(prefix = "id") {
+      const random = Math.random().toString(36).slice(2, 8);
+      return `${prefix}-${Date.now()}-${random}`;
+    },
+    createTask(title, done = false) {
+      return {
+        id: this.generateId("task"),
+        title,
+        done
+      };
+    },
+    createBudgetItem(title, amount) {
+      return {
+        id: this.generateId("budget"),
+        title,
+        amount: Number(amount) || 0
+      };
+    },
+    getTasks() {
+      const profile = this.state.profile || {};
+      return Array.isArray(profile.tasks) ? profile.tasks : [];
+    },
+    getBudgetItems() {
+      const profile = this.state.profile || {};
+      return Array.isArray(profile.budgetItems) ? profile.budgetItems : [];
+    },
+    addTask(title) {
+      const value = title.trim();
+      if (!value) {
+        return false;
+      }
+      const tasks = [...this.getTasks(), this.createTask(value)];
+      this.updateProfile({ tasks });
+      this.renderDashboard();
+      return true;
+    },
+    toggleTask(id, done) {
+      const tasks = this.getTasks().map((task) =>
+        task.id === id ? { ...task, done: Boolean(done) } : task
+      );
+      this.updateProfile({ tasks });
+      this.renderDashboard();
+    },
+    addBudgetItem(title, amount) {
+      const name = title.trim();
+      const numericAmount = Number(amount);
+      if (!name || Number.isNaN(numericAmount) || numericAmount <= 0) {
+        return false;
+      }
+      const budgetItems = [
+        ...this.getBudgetItems(),
+        this.createBudgetItem(name, numericAmount)
+      ];
+      this.updateProfile({ budgetItems });
+      this.renderDashboard();
+      return true;
+    },
+    formatCurrency(value) {
+      const formatter = new Intl.NumberFormat("ru-RU", {
+        style: "currency",
+        currency: "RUB",
+        maximumFractionDigits: 0
+      });
+      return formatter.format(Math.max(0, Number(value) || 0));
+    },
+    animateBudgetBars() {
+      const bars = this.appEl.querySelectorAll(".budget-bar");
+      requestAnimationFrame(() => {
+        bars.forEach((bar) => {
+          const width = bar.dataset.width || "0%";
+          bar.style.width = width;
+        });
+      });
+    },
     handleRouteChange() {
       const hash = location.hash || "#/dashboard";
       this.state.profile = this.loadProfile();
@@ -462,27 +536,50 @@
       }, 1200);
     },
     ensureProfile() {
-      if (this.state.profile) return;
-      const now = Date.now();
       const currentYear = new Date().getFullYear();
-      const profile = {
-        schemaVersion: 1,
-        weddingId: now.toString(),
-        vibe: [],
-        style: "",
-        venueBooked: false,
-        city: "",
-        year: currentYear,
-        month: new Date().getMonth() + 1,
-        budgetRange: "",
-        guests: 50,
-        createdAt: now,
-        updatedAt: now
-      };
-      this.saveProfile(profile);
+      const now = Date.now();
+      let profile = this.state.profile;
+      let needsSave = false;
+      if (!profile) {
+        profile = {
+          schemaVersion: 1,
+          weddingId: now.toString(),
+          vibe: [],
+          style: "",
+          venueBooked: false,
+          city: "",
+          year: currentYear,
+          month: new Date().getMonth() + 1,
+          budgetRange: "",
+          guests: 50,
+          tasks: DEFAULT_TASK_TITLES.map((title) => this.createTask(title)),
+          budgetItems: DEFAULT_BUDGET_PRESETS.map((item) =>
+            this.createBudgetItem(item.title, item.amount)
+          ),
+          createdAt: now,
+          updatedAt: now
+        };
+        needsSave = true;
+      }
+      if (!Array.isArray(profile.tasks) || profile.tasks.length === 0) {
+        profile.tasks = DEFAULT_TASK_TITLES.map((title) => this.createTask(title));
+        needsSave = true;
+      }
+      if (!Array.isArray(profile.budgetItems)) {
+        profile.budgetItems = DEFAULT_BUDGET_PRESETS.map((item) =>
+          this.createBudgetItem(item.title, item.amount)
+        );
+        needsSave = true;
+      }
+      if (needsSave) {
+        profile.updatedAt = now;
+        this.saveProfile(profile);
+      }
+      this.state.profile = profile;
+      return profile;
     },
     renderDashboard() {
-      const profile = this.state.profile;
+      const profile = this.ensureProfile();
       const hasProfile = Boolean(profile);
       const summaryItems = [];
       if (hasProfile && profile.vibe && profile.vibe.length) {
@@ -514,56 +611,196 @@
         </div>
       `;
       const daysBlock = hasProfile ? this.renderCountdown(profile) : "";
-      const cards = MODULE_CARDS.map((card) => `
-        <article class="dashboard-card ${card.size === "lg" ? "lg" : ""}" tabindex="0" data-card="${card.id}" data-title="${card.title}">
-          <h3>${card.title}</h3>
-          <p>Персональные рекомендации появятся скоро.</p>
-        </article>
-      `).join("");
+      const navItems = (DASHBOARD_NAV_ITEMS || [])
+        .map(
+          (item) =>
+            `<button type="button" class="nav-pill" data-title="${item.label}" data-nav="${item.id}">${item.label}</button>`
+        )
+        .join("");
+      const toolsCards = (TOOL_SECTIONS || [])
+        .map(
+          (tool) => `
+            <article class="tool-card" tabindex="0" data-tool="${tool.id}" data-title="${tool.title}">
+              <span class="tool-card__icon" aria-hidden="true">${tool.icon || ""}</span>
+              <div class="tool-card__body">
+                <h3>${tool.title}</h3>
+                <p>${tool.description || ""}</p>
+              </div>
+            </article>
+          `
+        )
+        .join("");
+      const tasks = this.getTasks();
+      const taskItems = tasks
+        .map(
+          (task) => `
+            <label class="task-item ${task.done ? "task-item--done" : ""}" data-task-id="${task.id}">
+              <input type="checkbox" ${task.done ? "checked" : ""} aria-label="${task.title}">
+              <span>${task.title}</span>
+            </label>
+          `
+        )
+        .join("") || `<p class="empty-state">Добавьте задачи, чтобы ничего не забыть.</p>`;
+      const budgetItems = this.getBudgetItems();
+      const totalBudget = budgetItems.reduce((acc, item) => acc + (Number(item.amount) || 0), 0);
+      const budgetRows = budgetItems
+        .map((item) => {
+          const ratio = totalBudget ? Math.round((Number(item.amount) / totalBudget) * 100) : 0;
+          const width = ratio > 0 ? `${Math.max(ratio, 6)}%` : "0%";
+          return `
+            <div class="budget-item" data-budget-id="${item.id}">
+              <div class="budget-item__header">
+                <span>${item.title}</span>
+                <strong>${this.formatCurrency(item.amount)}</strong>
+              </div>
+              <div class="budget-progress">
+                <div class="budget-bar" data-width="${width}"></div>
+              </div>
+            </div>
+          `;
+        })
+        .join("") || `<p class="empty-state">Добавьте первую статью расходов.</p>`;
       const actionsBlock = hasProfile
-        ? `<div class="actions" style="margin-top:2rem;">
-            <button type="button" id="edit-quiz">Редактировать ответы теста</button>
-          </div>`
+        ? `<button type="button" class="link-button" id="edit-quiz">Редактировать ответы теста</button>`
         : "";
       this.appEl.innerHTML = `
-        <section class="card">
+        <section class="dashboard">
+          <header class="card dashboard-header">
+            <div class="dashboard-header__top">
+              <div>
+                <h1>${heading}</h1>
+                ${introBlock}
+                ${daysBlock}
+              </div>
+              ${actionsBlock ? `<div class="dashboard-actions">${actionsBlock}</div>` : ""}
+            </div>
+            <nav class="dashboard-nav" aria-label="Основные разделы">
+              ${navItems}
+            </nav>
+          </header>
           ${heroImage}
-          <h1>${heading}</h1>
-          ${introBlock}
-          ${daysBlock}
-          <div class="dashboard-grid">${cards}</div>
-          ${actionsBlock}
+          <div class="dashboard-modules">
+            <section class="card checklist-module">
+              <div class="module-heading">
+                <h2>Чек-лист</h2>
+                <p>Отмечайте выполненные задачи и добавляйте новые</p>
+              </div>
+              <form id="task-form" class="inline-form">
+                <input type="text" name="taskTitle" placeholder="Добавить задачу" aria-label="Новая задача" autocomplete="off">
+                <button type="submit" class="icon-button" aria-label="Добавить задачу">+</button>
+              </form>
+              <p class="form-hint" id="task-hint" aria-live="polite"></p>
+              <div class="checklist-items">${taskItems}</div>
+            </section>
+            <section class="card tools-module">
+              <div class="module-heading">
+                <h2>Инструменты</h2>
+                <p>Все, что нужно для планирования свадьбы в одном месте</p>
+              </div>
+              <div class="tools-grid">${toolsCards}</div>
+            </section>
+            <section class="card budget-module">
+              <div class="module-heading">
+                <h2>Бюджет</h2>
+                <p>Запланировано: <strong>${this.formatCurrency(totalBudget)}</strong></p>
+              </div>
+              <div class="budget-list">${budgetRows}</div>
+              <form id="budget-form" class="budget-form">
+                <div class="budget-form__fields">
+                  <input type="text" name="budgetName" placeholder="Название" aria-label="Название статьи">
+                  <input type="number" name="budgetAmount" placeholder="Сумма" min="0" step="1000" aria-label="Сумма в рублях">
+                  <button type="submit">Добавить</button>
+                </div>
+                <p class="form-hint" id="budget-hint" aria-live="polite"></p>
+              </form>
+            </section>
+          </div>
         </section>
       `;
-      const handleCardActivation = (event, card) => {
-        if (!this.state.profile) {
-          if (event) {
-            event.preventDefault();
-          }
-          this.state.currentStep = 0;
-          this.ensureProfile();
-          location.hash = "#/quiz";
-          return;
-        }
+      const navButtons = this.appEl.querySelectorAll(".dashboard-nav .nav-pill");
+      navButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          this.openModal(button);
+        });
+      });
+      const handleToolActivation = (event, element) => {
         if (event && event.type === "keydown") {
           event.preventDefault();
         }
-        this.openModal(card);
+        this.openModal(element);
       };
-      this.appEl.querySelectorAll(".dashboard-card").forEach((card) => {
-        card.addEventListener("click", (event) => handleCardActivation(event, card));
+      this.appEl.querySelectorAll(".tool-card").forEach((card) => {
+        card.addEventListener("click", (event) => handleToolActivation(event, card));
         card.addEventListener("keydown", (event) => {
           if (event.key === "Enter" || event.key === " ") {
-            handleCardActivation(event, card);
+            handleToolActivation(event, card);
           }
         });
       });
-      if (hasProfile) {
-        document.getElementById("edit-quiz").addEventListener("click", () => {
-          this.state.currentStep = 0;
-          location.hash = "#/quiz";
+      const taskForm = document.getElementById("task-form");
+      const taskHint = document.getElementById("task-hint");
+      if (taskForm) {
+        const taskInput = taskForm.querySelector('input[name="taskTitle"]');
+        if (taskInput && taskHint) {
+          taskInput.addEventListener("input", () => {
+            taskHint.textContent = "";
+          });
+        }
+        taskForm.addEventListener("submit", (event) => {
+          event.preventDefault();
+          const formData = new FormData(taskForm);
+          const title = formData.get("taskTitle") || "";
+          const success = this.addTask(title.toString());
+          if (!success && taskHint) {
+            taskHint.textContent = "Введите название задачи";
+          }
         });
       }
+      this.appEl.querySelectorAll(".task-item input[type='checkbox']").forEach((input) => {
+        input.addEventListener("change", (event) => {
+          const checkbox = event.target;
+          const wrapper = checkbox.closest("[data-task-id]");
+          if (!wrapper) return;
+          this.toggleTask(wrapper.dataset.taskId, checkbox.checked);
+        });
+      });
+      const budgetForm = document.getElementById("budget-form");
+      const budgetHint = document.getElementById("budget-hint");
+      if (budgetForm) {
+        const nameInput = budgetForm.querySelector('input[name="budgetName"]');
+        const amountInput = budgetForm.querySelector('input[name="budgetAmount"]');
+        if (budgetHint) {
+          const clearHint = () => {
+            budgetHint.textContent = "";
+          };
+          if (nameInput) {
+            nameInput.addEventListener("input", clearHint);
+          }
+          if (amountInput) {
+            amountInput.addEventListener("input", clearHint);
+          }
+        }
+        budgetForm.addEventListener("submit", (event) => {
+          event.preventDefault();
+          const formData = new FormData(budgetForm);
+          const name = formData.get("budgetName") || "";
+          const amount = formData.get("budgetAmount") || "";
+          const success = this.addBudgetItem(name.toString(), amount.toString());
+          if (!success && budgetHint) {
+            budgetHint.textContent = "Добавьте название и сумму больше нуля";
+          }
+        });
+      }
+      if (hasProfile) {
+        const editButton = document.getElementById("edit-quiz");
+        if (editButton) {
+          editButton.addEventListener("click", () => {
+            this.state.currentStep = 0;
+            location.hash = "#/quiz";
+          });
+        }
+      }
+      this.animateBudgetBars();
     },
     renderCountdown(profile) {
       if (!profile.year || !profile.month) {

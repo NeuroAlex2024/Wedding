@@ -24,7 +24,7 @@ body {
 main#app {
   min-height: 100vh;
   padding: 3rem 1.5rem 4rem;
-  max-width: 960px;
+  max-width: 1180px;
   margin: 0 auto;
 }
 
@@ -280,12 +280,6 @@ button.secondary:hover {
   color: var(--accent-dark);
 }
 
-.dashboard-grid {
-  display: grid;
-  gap: 1.5rem;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-}
-
 .dashboard-hero-image {
   width: 100%;
   border-radius: 18px;
@@ -301,30 +295,284 @@ button.secondary:hover {
   object-fit: cover;
 }
 
-.dashboard-card {
-  background: var(--card);
-  border-radius: 18px;
-  padding: 1.5rem;
-  box-shadow: 0 8px 20px rgba(47, 42, 59, 0.08);
+.dashboard {
+  display: grid;
+  gap: 2rem;
+}
+
+.dashboard-header {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.dashboard-header__top {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   justify-content: space-between;
-  transition: transform 0.2s, box-shadow 0.2s;
+  align-items: flex-start;
+  gap: 1.5rem;
+}
+
+.dashboard-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.dashboard-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.dashboard-nav .nav-pill {
+  border: none;
+  border-radius: 999px;
+  padding: 0.6rem 1.35rem;
+  background: rgba(224, 122, 139, 0.14);
+  color: var(--accent-dark);
+  font-weight: 600;
   cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.dashboard-card:hover,
-.dashboard-card:focus {
-  transform: translateY(-4px);
-  box-shadow: 0 14px 30px rgba(224, 122, 139, 0.2);
+.dashboard-nav .nav-pill:hover,
+.dashboard-nav .nav-pill:focus-visible {
+  background: rgba(224, 122, 139, 0.22);
+  box-shadow: 0 10px 20px rgba(224, 122, 139, 0.18);
+  transform: translateY(-2px);
+  outline: none;
 }
 
-.dashboard-card.lg {
-  grid-column: span 2;
+.link-button {
+  background: transparent;
+  border: 1px solid rgba(224, 122, 139, 0.4);
+  color: var(--accent);
+  padding: 0.65rem 1.4rem;
+  border-radius: 999px;
 }
 
-.dashboard-card h3 {
+.link-button:hover,
+.link-button:focus-visible {
+  background: rgba(224, 122, 139, 0.12);
+  color: var(--accent-dark);
+  outline: none;
+}
+
+.dashboard-modules {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: minmax(260px, 1fr) minmax(320px, 1.25fr) minmax(260px, 1fr);
+  align-items: start;
+}
+
+.module-heading h2 {
+  margin-bottom: 0.3rem;
+}
+
+.module-heading p {
   margin: 0;
+  color: var(--muted);
+}
+
+.inline-form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.icon-button {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 1.5rem;
+  font-weight: 600;
+  padding: 0;
+}
+
+.form-hint {
+  margin: 0 0 0.75rem;
+  min-height: 1.25rem;
+  font-size: 0.85rem;
+  color: var(--accent-dark);
+}
+
+.checklist-items {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.task-item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.75rem;
+  align-items: center;
+  background: rgba(110, 103, 129, 0.08);
+  border-radius: 16px;
+  padding: 0.75rem 1rem;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.task-item:hover {
+  transform: translateX(2px);
+}
+
+.task-item input[type="checkbox"] {
+  width: 1.2rem;
+  height: 1.2rem;
+  accent-color: var(--accent);
+}
+
+.task-item--done {
+  background: rgba(76, 175, 176, 0.16);
+}
+
+.task-item--done span {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.tools-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.tool-card {
+  border-radius: 18px;
+  border: 1px solid rgba(110, 103, 129, 0.12);
+  padding: 1.2rem;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1rem;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.92);
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.tool-card:hover,
+.tool-card:focus-visible {
+  transform: translateY(-4px);
+  box-shadow: 0 18px 32px rgba(224, 122, 139, 0.2);
+  outline: none;
+}
+
+.tool-card__icon {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(224, 122, 139, 0.16);
+  font-size: 1.5rem;
+}
+
+.tool-card__body h3 {
+  margin: 0 0 0.25rem;
+}
+
+.tool-card__body p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.budget-list {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.budget-item__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  font-weight: 600;
+}
+
+.budget-progress {
+  margin-top: 0.5rem;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(224, 122, 139, 0.12);
+  overflow: hidden;
+}
+
+.budget-bar {
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), var(--success));
+  transition: width 0.6s ease;
+}
+
+.budget-form__fields {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.budget-form button {
+  border-radius: 12px;
+  padding: 0.7rem 1.4rem;
+}
+
+.empty-state {
+  margin: 0;
+  padding: 1rem;
+  border-radius: 16px;
+  background: rgba(110, 103, 129, 0.08);
+  color: var(--muted);
+  text-align: center;
+  font-size: 0.95rem;
+}
+
+@media (max-width: 1100px) {
+  .dashboard-modules {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .budget-module {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 820px) {
+  .dashboard-header__top {
+    flex-direction: column;
+  }
+
+  .dashboard-modules {
+    grid-template-columns: 1fr;
+  }
+
+  .budget-module {
+    grid-column: span 1;
+  }
+
+  .inline-form {
+    grid-template-columns: 1fr;
+  }
+
+  .inline-form .icon-button {
+    justify-self: end;
+  }
+
+  .budget-form__fields {
+    grid-template-columns: 1fr;
+  }
+
+  .budget-form button {
+    width: 100%;
+  }
 }
 
 .summary-line {
@@ -411,20 +659,12 @@ button.secondary:hover {
     width: 100%;
   }
 
-  .dashboard-grid {
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  }
-
-  .dashboard-card.lg {
-    grid-column: span 1;
-  }
-
   .actions {
     flex-direction: column;
     align-items: stretch;
   }
 
-  button {
+  button:not(.icon-button) {
     width: 100%;
   }
 }
