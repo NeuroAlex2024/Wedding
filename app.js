@@ -508,6 +508,11 @@
       const heading = hasProfile
         ? `${profile.groomName || "Жених"} + ${profile.brideName || "Невеста"}, добро пожаловать!`
         : "Планирование свадьбы без стресса";
+      const heroImage = `
+        <div class="dashboard-hero-image">
+          <img src="https://images.unsplash.com/photo-1591604466107-ec97de577aff?q=80&w=2071&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D" alt="Счастливая пара на прогулке">
+        </div>
+      `;
       const daysBlock = hasProfile ? this.renderCountdown(profile) : "";
       const cards = MODULE_CARDS.map((card) => `
         <article class="dashboard-card ${card.size === "lg" ? "lg" : ""}" tabindex="0" data-card="${card.id}" data-title="${card.title}">
@@ -518,11 +523,11 @@
       const actionsBlock = hasProfile
         ? `<div class="actions" style="margin-top:2rem;">
             <button type="button" id="edit-quiz">Редактировать ответы теста</button>
-            <button type="button" class="secondary" id="reset-profile">Начать заново</button>
           </div>`
         : "";
       this.appEl.innerHTML = `
         <section class="card">
+          ${heroImage}
           <h1>${heading}</h1>
           ${introBlock}
           ${daysBlock}
@@ -557,10 +562,6 @@
         document.getElementById("edit-quiz").addEventListener("click", () => {
           this.state.currentStep = 0;
           location.hash = "#/quiz";
-        });
-        document.getElementById("reset-profile").addEventListener("click", () => {
-          this.clearProfile();
-          location.hash = "#/dashboard";
         });
       }
     },

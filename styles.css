@@ -285,6 +285,21 @@ button.secondary:hover {
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
+.dashboard-hero-image {
+  width: 100%;
+  border-radius: 18px;
+  overflow: hidden;
+  margin-bottom: 1.75rem;
+  box-shadow: 0 16px 36px rgba(47, 42, 59, 0.15);
+}
+
+.dashboard-hero-image img {
+  width: 100%;
+  display: block;
+  height: 240px;
+  object-fit: cover;
+}
+
 .dashboard-card {
   background: var(--card);
   border-radius: 18px;
