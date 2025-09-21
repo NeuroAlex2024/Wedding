@@ -1,5 +1,6 @@
 (function () {
   const storageKey = "wedding_profile_v1";
+  const dashboardStorageKey = "wedding_dashboard_state_v1";
   const allowedRoutes = ["#/quiz", "#/dashboard"];
   const monthNames = [
     "Январь",
@@ -16,11 +17,43 @@
     "Декабрь"
   ];
 
+  const currencyFormatter = new Intl.NumberFormat("ru-RU", {
+    style: "currency",
+    currency: "RUB",
+    maximumFractionDigits: 0
+  });
+
+  const defaultChecklistItems = [
+    {
+      id: "task-venue",
+      text: "Забронировать площадку для церемонии",
+      completed: false
+    },
+    {
+      id: "task-guests",
+      text: "Согласовать предварительный список гостей",
+      completed: false
+    },
+    {
+      id: "task-style",
+      text: "Утвердить стиль оформления и цветовую палитру",
+      completed: false
+    }
+  ];
+
+  const defaultBudgetItems = [
+    { id: "budget-venue", title: "Аренда площадки", amount: 180000 },
+    { id: "budget-catering", title: "Кейтеринг", amount: 95000 },
+    { id: "budget-decor", title: "Декор и флористика", amount: 55000 }
+  ];
+
   const App = {
     storageKey,
+    dashboardStorageKey,
     allowedRoutes,
     state: {
       profile: null,
+      dashboard: null,
       currentRoute: "#/dashboard",
       currentStep: 0,
       modalOpen: false,
@@ -30,6 +63,7 @@
       this.cacheDom();
       this.bindGlobalEvents();
       this.state.profile = this.loadProfile();
+      this.state.dashboard = this.loadDashboardState();
       const defaultRoute = "#/dashboard";
       if (location.hash === "#/welcome") {
         location.replace(defaultRoute);
@@ -483,6 +517,7 @@
     },
     renderDashboard() {
       const profile = this.state.profile;
+      const dashboardState = this.ensureDashboardState();
       const hasProfile = Boolean(profile);
       const summaryItems = [];
       if (hasProfile && profile.vibe && profile.vibe.length) {
@@ -500,11 +535,12 @@
       if (hasProfile && profile.budgetRange) {
         summaryItems.push(`Бюджет: ${profile.budgetRange}`);
       }
-      const summaryLine = summaryItems.length
-        ? `<div class="summary-line">${summaryItems.map((item) => `<span>${item}</span>`).join("")}</div>`
-        : "";
-      const summaryFallback = `<p class="dashboard-intro">Ваши ответы появятся здесь сразу после прохождения теста.</p>`;
-      const introBlock = hasProfile ? summaryLine || summaryFallback : "";
+      const summaryFallback = hasProfile
+        ? `<p class="dashboard-intro">Ваши ответы появятся здесь сразу после прохождения теста.</p>`
+        : `<p class="dashboard-intro">Пройдите короткую настройку — и мы подготовим персональный план праздника.</p>`;
+      const summaryBlock = summaryItems.length
+        ? `<ul class="summary-pills">${summaryItems.map((item) => `<li>${item}</li>`).join("")}</ul>`
+        : summaryFallback;
       const heading = hasProfile
         ? `${profile.groomName || "Жених"} + ${profile.brideName || "Невеста"}, добро пожаловать!`
         : "Планирование свадьбы без стресса";
@@ -514,56 +550,383 @@
         </div>
       `;
       const daysBlock = hasProfile ? this.renderCountdown(profile) : "";
-      const cards = MODULE_CARDS.map((card) => `
-        <article class="dashboard-card ${card.size === "lg" ? "lg" : ""}" tabindex="0" data-card="${card.id}" data-title="${card.title}">
-          <h3>${card.title}</h3>
-          <p>Персональные рекомендации появятся скоро.</p>
-        </article>
-      `).join("");
-      const actionsBlock = hasProfile
-        ? `<div class="actions" style="margin-top:2rem;">
-            <button type="button" id="edit-quiz">Редактировать ответы теста</button>
-          </div>`
-        : "";
       this.appEl.innerHTML = `
-        <section class="card">
-          ${heroImage}
-          <h1>${heading}</h1>
-          ${introBlock}
-          ${daysBlock}
-          <div class="dashboard-grid">${cards}</div>
-          ${actionsBlock}
+        <section class="dashboard">
+          ${this.renderDashboardNavigation()}
+          <section class="card dashboard-hero">
+            <div class="dashboard-hero__media">${heroImage}</div>
+            <div class="dashboard-hero__content">
+              <h1>${heading}</h1>
+              ${summaryBlock}
+              ${daysBlock}
+              <div class="dashboard-hero__actions">
+                ${
+                  hasProfile
+                    ? '<button type="button" class="secondary" id="edit-quiz">Обновить ответы</button>'
+                    : '<button type="button" id="start-quiz">Пройти настройку профиля</button>'
+                }
+              </div>
+            </div>
+          </section>
+          <div class="dashboard-modules">
+            ${this.renderChecklistModule(dashboardState)}
+            ${this.renderToolsModule()}
+            ${this.renderBudgetModule(dashboardState)}
+          </div>
         </section>
       `;
-      const handleCardActivation = (event, card) => {
-        if (!this.state.profile) {
-          if (event) {
+      this.bindDashboardInteractions(hasProfile, dashboardState);
+    },
+    renderDashboardNavigation() {
+      return `
+        <section class="card module module--nav">
+          <div class="module-header">
+            <h2>Основные разделы</h2>
+            <p>Быстрый доступ ко всем ключевым блокам свадьбы</p>
+          </div>
+          <ul class="nav-pill-list">
+            ${DASHBOARD_NAV_ITEMS.map(
+              (item) => `
+                <li>
+                  <button type="button" class="nav-pill" data-title="${item.label}" data-nav="${item.id}">
+                    ${item.label}
+                  </button>
+                </li>
+              `
+            ).join("")}
+          </ul>
+        </section>
+      `;
+    },
+    renderChecklistModule(dashboardState) {
+      const items = dashboardState.checklist || [];
+      const listMarkup = items.length
+        ? `<ul class="checklist" id="checklist-items">
+            ${items
+              .map(
+                (item) => `
+                  <li class="checklist-item ${item.completed ? "is-completed" : ""}">
+                    <label>
+                      <input type="checkbox" data-checklist-toggle="${item.id}" ${
+                        item.completed ? "checked" : ""
+                      }>
+                      <span>${item.text}</span>
+                    </label>
+                  </li>
+                `
+              )
+              .join("")}
+          </ul>`
+        : `<p class="empty-state">Добавьте первую задачу, чтобы ничего не забыть.</p>`;
+      return `
+        <section class="card module module--checklist" id="module-checklist">
+          <div class="module-header">
+            <h2>Чек-лист</h2>
+            <p>Отмечайте выполненное и добавляйте новые дела в один клик</p>
+          </div>
+          ${listMarkup}
+          <form id="checklist-form" class="checklist-form" autocomplete="off">
+            <label for="checklist-input" class="visually-hidden">Новая задача</label>
+            <div class="checklist-form__row">
+              <input id="checklist-input" type="text" name="checklist" placeholder="Например, выбрать торт" required>
+              <button type="submit">Добавить</button>
+            </div>
+          </form>
+        </section>
+      `;
+    },
+    renderToolsModule() {
+      return `
+        <section class="card module module--tools" id="module-tools">
+          <div class="module-header">
+            <h2>Инструменты</h2>
+            <p>Все сервисы для подготовки свадьбы на одной панели</p>
+          </div>
+          <div class="tool-grid">
+            ${DASHBOARD_TOOL_ITEMS.map(
+              (tool) => `
+                <article class="tool-card" tabindex="0" data-title="${tool.title}" data-tool="${tool.id}">
+                  <header>
+                    <h3>${tool.title}</h3>
+                    <p>${tool.subtitle}</p>
+                  </header>
+                  <footer>
+                    <span class="tool-card__hint">Скоро доступно</span>
+                  </footer>
+                </article>
+              `
+            ).join("")}
+          </div>
+        </section>
+      `;
+    },
+    renderBudgetModule(dashboardState) {
+      const items = dashboardState.budget || [];
+      const total = items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+      const summary = `
+        <div class="budget-summary">
+          <span>Всего запланировано</span>
+          <strong>${this.formatCurrency(total)}</strong>
+        </div>
+      `;
+      const chart = items.length
+        ? `<div class="budget-chart" id="budget-chart">
+            ${items
+              .map((item, index) => this.renderBudgetBar(item, index, total))
+              .join("")}
+          </div>`
+        : `<p class="empty-state">Добавьте первую статью расходов, чтобы видеть распределение бюджета.</p>`;
+      const listMarkup = items.length
+        ? `<ul class="budget-list" id="budget-list">
+            ${items
+              .map(
+                (item) => `
+                  <li class="budget-list-item" data-id="${item.id}">
+                    <span class="budget-list-item__title">${item.title}</span>
+                    <span class="budget-list-item__amount">${this.formatCurrency(item.amount)}</span>
+                  </li>
+                `
+              )
+              .join("")}
+          </ul>`
+        : "";
+      return `
+        <section class="card module module--budget" id="module-budget">
+          <div class="module-header">
+            <h2>Бюджет</h2>
+            <p>Визуализируйте расходы и добавляйте новые статьи мгновенно</p>
+          </div>
+          ${summary}
+          ${chart}
+          ${listMarkup}
+          <form id="budget-form" class="budget-form" autocomplete="off">
+            <div class="budget-form__row">
+              <div class="form-field">
+                <label for="budget-name">Название статьи</label>
+                <input id="budget-name" type="text" name="budgetName" placeholder="Например, флористика" required>
+              </div>
+              <div class="form-field">
+                <label for="budget-amount">Сумма, ₽</label>
+                <input id="budget-amount" type="number" name="budgetAmount" min="0" step="1000" inputmode="numeric" required>
+              </div>
+            </div>
+            <button type="submit">Добавить статью</button>
+          </form>
+        </section>
+      `;
+    },
+    renderBudgetBar(item, index, total) {
+      const safeTotal = total > 0 ? total : 1;
+      const amount = Number(item.amount) || 0;
+      const percent = Math.round((amount / safeTotal) * 100);
+      const color = BUDGET_COLORS[index % BUDGET_COLORS.length];
+      return `
+        <div class="budget-bar" data-id="${item.id}" data-amount="${amount}" data-percent="${percent}">
+          <div class="budget-bar__header">
+            <span>${item.title}</span>
+            <span>${percent}%</span>
+          </div>
+          <div class="budget-bar__track">
+            <div class="budget-bar__fill" style="background:${color};"></div>
+          </div>
+        </div>
+      `;
+    },
+    bindDashboardInteractions(hasProfile, dashboardState) {
+      if (hasProfile) {
+        const editButton = document.getElementById("edit-quiz");
+        if (editButton) {
+          editButton.addEventListener("click", () => {
+            this.state.currentStep = 0;
+            location.hash = "#/quiz";
+          });
+        }
+      } else {
+        const startButton = document.getElementById("start-quiz");
+        if (startButton) {
+          startButton.addEventListener("click", () => {
+            this.state.currentStep = 0;
+            this.ensureProfile();
+            location.hash = "#/quiz";
+          });
+        }
+      }
+
+      this.appEl.querySelectorAll(".nav-pill").forEach((pill) => {
+        pill.addEventListener("click", () => this.openModal(pill));
+      });
+
+      this.appEl.querySelectorAll(".tool-card").forEach((card) => {
+        const handleActivate = (event) => {
+          if (event && event.type === "keydown" && event.key !== "Enter" && event.key !== " ") {
+            return;
+          }
+          if (event && event.type === "keydown") {
             event.preventDefault();
           }
-          this.state.currentStep = 0;
-          this.ensureProfile();
-          location.hash = "#/quiz";
-          return;
-        }
-        if (event && event.type === "keydown") {
-          event.preventDefault();
-        }
-        this.openModal(card);
-      };
-      this.appEl.querySelectorAll(".dashboard-card").forEach((card) => {
-        card.addEventListener("click", (event) => handleCardActivation(event, card));
-        card.addEventListener("keydown", (event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            handleCardActivation(event, card);
-          }
-        });
+          this.openModal(card);
+        };
+        card.addEventListener("click", handleActivate);
+        card.addEventListener("keydown", handleActivate);
       });
-      if (hasProfile) {
-        document.getElementById("edit-quiz").addEventListener("click", () => {
-          this.state.currentStep = 0;
-          location.hash = "#/quiz";
+
+      const checklistForm = document.getElementById("checklist-form");
+      const checklistInput = document.getElementById("checklist-input");
+      if (checklistForm && checklistInput) {
+        checklistForm.addEventListener("submit", (event) => {
+          event.preventDefault();
+          const value = checklistInput.value.trim();
+          if (!value) {
+            checklistInput.focus();
+            return;
+          }
+          checklistForm.reset();
+          this.updateDashboardState((draft) => {
+            draft.checklist.push({ id: this.generateId(), text: value, completed: false });
+            return draft;
+          });
         });
       }
+
+      this.appEl.querySelectorAll("[data-checklist-toggle]").forEach((input) => {
+        input.addEventListener("change", (event) => {
+          const id = event.target.getAttribute("data-checklist-toggle");
+          const checked = event.target.checked;
+          this.updateDashboardState((draft) => {
+            const item = draft.checklist.find((task) => task.id === id);
+            if (!item) {
+              return null;
+            }
+            item.completed = checked;
+            return draft;
+          });
+        });
+      });
+
+      const budgetForm = document.getElementById("budget-form");
+      const budgetName = document.getElementById("budget-name");
+      const budgetAmount = document.getElementById("budget-amount");
+      if (budgetForm && budgetName && budgetAmount) {
+        budgetForm.addEventListener("submit", (event) => {
+          event.preventDefault();
+          const name = budgetName.value.trim();
+          const amountValue = Number(budgetAmount.value);
+          if (!name) {
+            budgetName.focus();
+            return;
+          }
+          if (!Number.isFinite(amountValue) || amountValue <= 0) {
+            budgetAmount.setCustomValidity("Введите сумму больше нуля");
+            budgetAmount.reportValidity();
+            budgetAmount.setCustomValidity("");
+            return;
+          }
+          budgetForm.reset();
+          this.updateDashboardState((draft) => {
+            draft.budget.push({ id: this.generateId(), title: name, amount: Math.round(amountValue) });
+            return draft;
+          });
+        });
+      }
+
+      this.animateBudgetChart(dashboardState.budget || []);
+    },
+    animateBudgetChart(items) {
+      const chart = this.appEl.querySelector("#budget-chart");
+      if (!chart || !items.length) {
+        return;
+      }
+      const total = items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0) || 1;
+      requestAnimationFrame(() => {
+        chart.querySelectorAll(".budget-bar").forEach((bar) => {
+          const amount = Number(bar.getAttribute("data-amount")) || 0;
+          const percent = Math.min(100, Math.round((amount / total) * 100));
+          const fill = bar.querySelector(".budget-bar__fill");
+          if (!fill) return;
+          fill.style.width = "0%";
+          // Force layout so that transition restarts each time
+          void fill.offsetWidth;
+          fill.style.width = `${percent}%`;
+        });
+      });
+    },
+    ensureDashboardState() {
+      if (this.state.dashboard) {
+        return this.state.dashboard;
+      }
+      const stored = this.loadDashboardState();
+      if (stored) {
+        this.state.dashboard = stored;
+        return stored;
+      }
+      const defaults = this.getDefaultDashboardState();
+      this.saveDashboardState(defaults);
+      return defaults;
+    },
+    getDefaultDashboardState() {
+      return {
+        schemaVersion: 1,
+        checklist: defaultChecklistItems.map((item) => ({ ...item })),
+        budget: defaultBudgetItems.map((item) => ({ ...item }))
+      };
+    },
+    loadDashboardState() {
+      try {
+        const raw = localStorage.getItem(this.dashboardStorageKey);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed || parsed.schemaVersion !== 1) {
+          return null;
+        }
+        if (!Array.isArray(parsed.checklist) || !Array.isArray(parsed.budget)) {
+          return null;
+        }
+        return {
+          schemaVersion: 1,
+          checklist: parsed.checklist.map((item) => ({
+            id: item.id || this.generateId(),
+            text: item.text || "",
+            completed: Boolean(item.completed)
+          })),
+          budget: parsed.budget.map((item) => ({
+            id: item.id || this.generateId(),
+            title: item.title || "",
+            amount: Number(item.amount) || 0
+          }))
+        };
+      } catch (error) {
+        console.error("Не удалось загрузить данные дашборда", error);
+        return null;
+      }
+    },
+    saveDashboardState(state) {
+      try {
+        localStorage.setItem(this.dashboardStorageKey, JSON.stringify(state));
+        this.state.dashboard = state;
+      } catch (error) {
+        console.error("Не удалось сохранить данные дашборда", error);
+      }
+    },
+    updateDashboardState(updater) {
+      const base = this.ensureDashboardState();
+      const draft = {
+        schemaVersion: 1,
+        checklist: base.checklist.map((item) => ({ ...item })),
+        budget: base.budget.map((item) => ({ ...item }))
+      };
+      const result = updater(draft);
+      if (!result) {
+        return;
+      }
+      this.saveDashboardState(result);
+      this.renderDashboard();
+    },
+    generateId() {
+      return `id-${Math.random().toString(36).slice(2, 10)}`;
+    },
+    formatCurrency(value) {
+      const amount = Number(value) || 0;
+      return currencyFormatter.format(amount);
     },
     renderCountdown(profile) {
       if (!profile.year || !profile.month) {

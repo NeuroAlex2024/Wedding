@@ -42,15 +42,28 @@ const BUDGET_RANGES = [
   "От 2 млн ₽"
 ];
 
-const MODULE_CARDS = [
-  { id: "venues", title: "Места проведения", size: "lg" },
-  { id: "photographers", title: "Фотографы" },
-  { id: "videographers", title: "Видеографы" },
-  { id: "catering", title: "Кейтеринг" },
-  { id: "florists", title: "Флористы" },
-  { id: "cars", title: "Аренда машин" },
-  { id: "outfits", title: "Платья и костюмы" },
-  { id: "hosts", title: "Ведущие" },
-  { id: "djs", title: "Диджеи" },
-  { id: "jewelry", title: "Ювелирные" }
+const DASHBOARD_NAV_ITEMS = [
+  { id: "nav-venue", label: "Место проведения" },
+  { id: "nav-vendors", label: "Подрядчики" },
+  { id: "nav-tools", label: "Инструменты" },
+  { id: "nav-checklist", label: "Контрольный список" },
+  { id: "nav-budget", label: "Бюджет" },
+  { id: "nav-blog", label: "Блог" }
+];
+
+const DASHBOARD_TOOL_ITEMS = [
+  { id: "tool-budget", title: "Бюджет", subtitle: "Следите за планом расходов" },
+  { id: "tool-guests", title: "Список гостей", subtitle: "Учитывайте подтверждения" },
+  { id: "tool-website", title: "Сайт-приглашение", subtitle: "Поделитесь деталями праздника" },
+  { id: "tool-booked", title: "Забронировано", subtitle: "Всё, что уже подтверждено" },
+  { id: "tool-favorites", title: "Избранное", subtitle: "Сохраняйте лучших подрядчиков" }
+];
+
+const BUDGET_COLORS = [
+  "#e07a8b",
+  "#9f86c0",
+  "#74c69d",
+  "#ffd166",
+  "#f4978e",
+  "#6d597a"
 ];
