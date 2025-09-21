@@ -487,7 +487,7 @@ button.secondary:hover {
 
 .budget-summary__chart {
   position: relative;
-  width: min(150px, 36vw);
+  width: min(138px, 34vw);
   aspect-ratio: 1 / 1;
   border-radius: 50%;
   background: var(
@@ -503,7 +503,7 @@ button.secondary:hover {
 .budget-summary__chart::after {
   content: "";
   position: absolute;
-  inset: 22%;
+  inset: 30%;
   border-radius: 50%;
   background: #fff;
   box-shadow: inset 0 0 0 1px rgba(224, 122, 139, 0.1);
@@ -521,7 +521,7 @@ button.secondary:hover {
 }
 
 .budget-summary__value {
-  font-size: clamp(1.25rem, 1vw + 0.95rem, 1.85rem);
+  font-size: clamp(1.15rem, 0.9vw + 0.85rem, 1.7rem);
   font-weight: 700;
   color: var(--accent-dark);
   letter-spacing: -0.01em;
