@@ -98,6 +98,7 @@ p {
   width: 100%;
   display: block;
   object-fit: cover;
+  object-position: top center;
   min-height: 240px;
 }
 
