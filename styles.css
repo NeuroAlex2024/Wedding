@@ -16,15 +16,17 @@
 body {
   margin: 0;
   font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-  background: var(--bg);
+  background: radial-gradient(circle at 20% 20%, rgba(224, 122, 139, 0.08), transparent 55%),
+    radial-gradient(circle at 80% 10%, rgba(138, 198, 209, 0.08), transparent 55%),
+    var(--bg);
   color: var(--txt);
   line-height: 1.6;
 }
 
 main#app {
   min-height: 100vh;
-  padding: 3rem 1.5rem 4rem;
-  max-width: 960px;
+  padding: clamp(3rem, 4vw + 2rem, 4.5rem) clamp(1.5rem, 6vw, 4rem) clamp(4rem, 5vw + 2rem, 5rem);
+  max-width: min(1280px, 96vw);
   margin: 0 auto;
 }
 
@@ -41,9 +43,10 @@ p {
 
 .card {
   background: var(--card);
-  border-radius: 20px;
-  padding: 2rem;
-  box-shadow: 0 10px 25px rgba(47, 42, 59, 0.08);
+  border-radius: 24px;
+  padding: clamp(2rem, 2vw + 1.5rem, 2.75rem);
+  box-shadow: 0 18px 45px rgba(47, 42, 59, 0.12);
+  border: 1px solid rgba(110, 103, 129, 0.08);
 }
 
 .welcome {
@@ -288,16 +291,19 @@ button.secondary:hover {
 
 .dashboard-hero-image {
   width: 100%;
-  border-radius: 18px;
+  border-radius: 24px;
   overflow: hidden;
   margin: 0;
-  box-shadow: 0 16px 36px rgba(47, 42, 59, 0.15);
+  box-shadow: 0 24px 45px rgba(47, 42, 59, 0.2);
+  display: flex;
+  min-height: 100%;
 }
 
 .dashboard-hero-image img {
   width: 100%;
   display: block;
-  height: 240px;
+  height: 100%;
+  min-height: 320px;
   object-fit: cover;
 }
 
@@ -345,63 +351,71 @@ button.secondary:hover {
 .dashboard-card-shell {
   display: flex;
   flex-direction: column;
-  gap: 2.5rem;
-  padding: clamp(1.75rem, 2vw + 1.25rem, 2.75rem);
+  gap: clamp(2rem, 2.5vw, 3rem);
+  padding: clamp(2.25rem, 2vw + 2rem, 3rem);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(248, 247, 251, 0.88));
+  border: 1px solid rgba(110, 103, 129, 0.1);
 }
 
 .dashboard-top {
   display: grid;
-  gap: 1.5rem;
+  gap: 1.75rem;
+  grid-template-columns: minmax(260px, 0.85fr) minmax(420px, 1.15fr);
+  align-items: stretch;
 }
 
 .dashboard-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  padding: 1rem 1.25rem;
-  border-radius: 18px;
-  background: linear-gradient(135deg, rgba(224, 122, 139, 0.12), rgba(127, 200, 169, 0.12));
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 1rem;
+  padding: 1.5rem;
+  border-radius: 20px;
+  background: linear-gradient(140deg, rgba(224, 122, 139, 0.18), rgba(127, 200, 169, 0.16));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
 .module-pill {
   border: none;
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.96);
   color: var(--txt);
-  padding: 0.65rem 1.3rem;
-  border-radius: 999px;
+  padding: 0.75rem 1.5rem;
+  border-radius: 18px;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 8px 18px rgba(47, 42, 59, 0.12);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  justify-self: stretch;
+  box-shadow: 0 12px 24px rgba(47, 42, 59, 0.15);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 
 .module-pill:hover,
 .module-pill:focus {
-  transform: translateY(-2px);
-  box-shadow: 0 14px 24px rgba(224, 122, 139, 0.25);
+  transform: translateY(-3px);
+  box-shadow: 0 18px 32px rgba(224, 122, 139, 0.28);
   outline: none;
+  background: rgba(255, 255, 255, 1);
 }
 
 .dashboard-header {
   display: grid;
-  gap: 1.25rem;
+  gap: 1.5rem;
 }
 
 .dashboard-main {
   display: grid;
-  grid-template-columns: minmax(240px, 1fr) minmax(280px, 1.3fr) minmax(240px, 1fr);
-  gap: 1.75rem;
-  align-items: start;
+  grid-template-columns: minmax(280px, 0.85fr) minmax(420px, 1.4fr) minmax(320px, 1fr);
+  gap: 2rem 2.5rem;
+  align-items: stretch;
 }
 
 .module {
-  background: rgba(255, 255, 255, 0.92);
-  border-radius: 18px;
-  padding: 1.5rem;
-  box-shadow: 0 10px 24px rgba(47, 42, 59, 0.1);
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: 22px;
+  padding: clamp(1.75rem, 2vw + 1rem, 2.5rem);
+  box-shadow: 0 16px 30px rgba(47, 42, 59, 0.12);
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 1.5rem;
+  border: 1px solid rgba(110, 103, 129, 0.08);
 }
 
 .module-heading {
@@ -416,8 +430,8 @@ button.secondary:hover {
 
 .tools-grid {
   display: grid;
-  gap: 1rem;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.25rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
 .tool-card {
@@ -691,7 +705,7 @@ button.secondary:hover {
   }
 
   .card {
-    padding: 1.5rem;
+    padding: 1.75rem;
   }
 
   .welcome-layout {
@@ -718,11 +732,25 @@ button.secondary:hover {
   button {
     width: 100%;
   }
+
+  .dashboard-links {
+    grid-template-columns: 1fr;
+  }
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 1200px) {
+  .dashboard-top {
+    grid-template-columns: 1fr;
+  }
+
   .dashboard-main {
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .dashboard-links {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   }
 }
 
@@ -735,9 +763,12 @@ button.secondary:hover {
     grid-template-columns: 1fr;
   }
 
-  .module-pill {
-    flex: 1 1 45%;
-    text-align: center;
+  .dashboard-links {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  }
+
+  .module {
+    padding: 1.75rem;
   }
 
   .tools-grid {
