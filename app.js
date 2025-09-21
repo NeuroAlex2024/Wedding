@@ -34,7 +34,10 @@
       lastFocused: null,
       tasks: [],
       budgetItems: [],
-      lastBudgetTotal: 0
+      lastBudgetTotal: 0,
+      editingTaskId: null,
+      focusNewTask: false,
+      editingFocusRequested: false
     },
     init() {
       this.cacheDom();
@@ -541,18 +544,43 @@
           </div>
         </article>
       `).join("");
-      const tasksMarkup = this.state.tasks.length
+      const totalTasks = this.state.tasks.length;
+      const completedTasks = this.state.tasks.filter((task) => task.completed).length;
+      const completionRate = totalTasks ? Math.round((completedTasks / totalTasks) * 100) : 0;
+      const allCompleted = totalTasks > 0 && completedTasks === totalTasks;
+      const completeAllLabel = allCompleted ? "Снять все отметки" : "Отметить все";
+      const clearButtonAttributes = completedTasks ? "" : "disabled aria-disabled=\"true\"";
+      const tasksMarkup = totalTasks
         ? this.state.tasks
-            .map(
-              (task) => `
-                <li>
+            .map((task) => {
+              const safeTitle = this.escapeHtml(task.title);
+              if (this.state.editingTaskId === task.id) {
+                return `
+                  <li class="checklist-row is-editing" data-task-id="${task.id}">
+                    <form class="checklist-edit-form">
+                      <label class="visually-hidden" for="edit-${task.id}">Изменить задачу</label>
+                      <input type="text" id="edit-${task.id}" name="edit-task" value="${safeTitle}" required autocomplete="off">
+                      <div class="checklist-edit-form__actions">
+                        <button type="submit">Сохранить</button>
+                        <button type="button" class="secondary checklist-cancel-edit">Отмена</button>
+                      </div>
+                    </form>
+                  </li>
+                `;
+              }
+              return `
+                <li class="checklist-row ${task.completed ? "is-complete" : ""}" data-task-id="${task.id}">
                   <label class="checklist-item ${task.completed ? "completed" : ""}">
                     <input type="checkbox" data-task-id="${task.id}" ${task.completed ? "checked" : ""}>
-                    <span>${task.title}</span>
+                    <span>${safeTitle}</span>
                   </label>
+                  <div class="checklist-item__actions">
+                    <button type="button" class="icon-button checklist-edit" aria-label="Редактировать задачу «${safeTitle}»">✏️</button>
+                    <button type="button" class="icon-button checklist-remove" aria-label="Удалить задачу «${safeTitle}»">✖️</button>
+                  </div>
                 </li>
-              `
-            )
+              `;
+            })
             .join("")
         : `<li class="checklist-empty">Добавьте первую задачу, чтобы не забыть важное.</li>`;
       const budgetTotal = this.state.budgetItems.reduce(
@@ -591,6 +619,30 @@
           </div>`
         : "";
       const totalDisplay = this.formatCurrency(this.state.lastBudgetTotal || budgetTotal);
+      const checklistToolbar = `
+        <div class="checklist-toolbar">
+          <div class="checklist-progress" role="status" aria-live="polite">
+            <span class="checklist-progress__label">Готово ${completedTasks} из ${totalTasks}</span>
+            <div class="checklist-progress__bar">
+              <span class="checklist-progress__fill" style="width: ${completionRate}%"></span>
+            </div>
+          </div>
+          <div class="checklist-toolbar__actions">
+            <button
+              type="button"
+              class="chip-button"
+              id="checklist-complete-all"
+              data-mode="${allCompleted ? "reset" : "complete"}"
+              aria-pressed="${allCompleted ? "true" : "false"}"
+            >
+              ${completeAllLabel}
+            </button>
+            <button type="button" class="chip-button destructive" id="checklist-clear-completed" ${clearButtonAttributes}>
+              Очистить выполненные
+            </button>
+          </div>
+        </div>
+      `;
       this.appEl.innerHTML = `
         <section class="card dashboard-card-shell">
           <div class="dashboard-top">
@@ -613,6 +665,7 @@
                 <h2 id="checklist-title">Контрольный список</h2>
                 <p>Отмечайте готовые задачи и добавляйте новые.</p>
               </div>
+              ${checklistToolbar}
               <ul class="checklist" id="checklist-list">
                 ${tasksMarkup}
               </ul>
@@ -696,12 +749,94 @@
           this.addTask(value);
         });
       }
-      this.appEl.querySelectorAll('input[data-task-id]').forEach((checkbox) => {
-        checkbox.addEventListener("change", (event) => {
-          const { taskId } = event.target.dataset;
-          this.toggleTask(taskId, event.target.checked);
+      const checklistList = document.getElementById("checklist-list");
+      if (checklistList) {
+        checklistList.addEventListener("change", (event) => {
+          const target = event.target;
+          if (target && target.matches('input[type="checkbox"][data-task-id]')) {
+            const { taskId } = target.dataset;
+            this.toggleTask(taskId, target.checked);
+          }
         });
-      });
+        checklistList.addEventListener("click", (event) => {
+          const editBtn = event.target.closest(".checklist-edit");
+          if (editBtn) {
+            const item = editBtn.closest("[data-task-id]");
+            if (item) {
+              this.startTaskEdit(item.dataset.taskId);
+            }
+            return;
+          }
+          const removeBtn = event.target.closest(".checklist-remove");
+          if (removeBtn) {
+            const item = removeBtn.closest("[data-task-id]");
+            if (item) {
+              this.deleteTask(item.dataset.taskId);
+            }
+            return;
+          }
+          const cancelBtn = event.target.closest(".checklist-cancel-edit");
+          if (cancelBtn) {
+            this.cancelTaskEdit();
+          }
+        });
+        checklistList.addEventListener("submit", (event) => {
+          if (event.target.matches(".checklist-edit-form")) {
+            event.preventDefault();
+            const form = event.target;
+            const item = form.closest("[data-task-id]");
+            if (!item) return;
+            const input = form.querySelector('input[name="edit-task"]');
+            if (!input) return;
+            const value = input.value.trim();
+            if (!value) {
+              input.focus();
+              return;
+            }
+            this.saveTaskEdit(item.dataset.taskId, value);
+          }
+        });
+        checklistList.addEventListener("keydown", (event) => {
+          if (event.key === "Escape" && event.target.closest(".checklist-edit-form")) {
+            event.preventDefault();
+            this.cancelTaskEdit();
+          }
+        });
+      }
+      const completeAllButton = document.getElementById("checklist-complete-all");
+      if (completeAllButton) {
+        completeAllButton.addEventListener("click", () => {
+          const mode = completeAllButton.dataset.mode;
+          this.setAllTasks(mode !== "reset");
+        });
+      }
+      const clearCompletedButton = document.getElementById("checklist-clear-completed");
+      if (clearCompletedButton) {
+        clearCompletedButton.addEventListener("click", () => {
+          if (!clearCompletedButton.disabled) {
+            this.clearCompletedTasks();
+          }
+        });
+      }
+      if (this.state.focusNewTask) {
+        requestAnimationFrame(() => {
+          const input = document.getElementById("new-task");
+          if (input) {
+            input.focus();
+          }
+        });
+        this.state.focusNewTask = false;
+      }
+      if (this.state.editingFocusRequested) {
+        requestAnimationFrame(() => {
+          const editInput = document.getElementById(`edit-${this.state.editingTaskId}`);
+          if (editInput) {
+            editInput.focus();
+            editInput.select();
+          }
+        });
+        this.state.editingFocusRequested = false;
+      }
       const budgetForm = document.getElementById("budget-form");
       if (budgetForm) {
         const nameInput = document.getElementById("budget-name");
@@ -823,6 +958,14 @@
     generateId(prefix) {
       return `${prefix}-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36)}`;
     },
+    escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    },
     formatCurrency(value) {
       return this.currencyFormatter.format(Math.max(0, Math.round(Number(value) || 0)));
     },
@@ -885,11 +1028,12 @@
     addTask(title) {
       const trimmed = title.trim();
       if (!trimmed) return;
-      const next = [
-        ...this.state.tasks,
-        { id: this.generateId("task"), title: trimmed, completed: false }
-      ];
+      const newTask = { id: this.generateId("task"), title: trimmed, completed: false };
+      const next = [newTask, ...this.state.tasks];
       this.saveTasks(next);
+      this.state.editingTaskId = null;
+      this.state.editingFocusRequested = false;
+      this.state.focusNewTask = true;
       this.renderDashboard();
     },
     toggleTask(taskId, completed) {
@@ -897,6 +1041,60 @@
         task.id === taskId ? { ...task, completed: Boolean(completed) } : task
       );
       this.saveTasks(next);
+      this.state.focusNewTask = false;
+      this.renderDashboard();
+    },
+    startTaskEdit(taskId) {
+      this.state.editingTaskId = taskId;
+      this.state.editingFocusRequested = true;
+      this.state.focusNewTask = false;
+      this.renderDashboard();
+    },
+    cancelTaskEdit() {
+      this.state.editingTaskId = null;
+      this.state.editingFocusRequested = false;
+      this.state.focusNewTask = true;
+      this.renderDashboard();
+    },
+    saveTaskEdit(taskId, title) {
+      const trimmed = title.trim();
+      if (!trimmed) {
+        this.cancelTaskEdit();
+        return;
+      }
+      const next = this.state.tasks.map((task) =>
+        task.id === taskId ? { ...task, title: trimmed } : task
+      );
+      this.saveTasks(next);
+      this.state.editingTaskId = null;
+      this.state.editingFocusRequested = false;
+      this.state.focusNewTask = true;
+      this.renderDashboard();
+    },
+    deleteTask(taskId) {
+      const next = this.state.tasks.filter((task) => task.id !== taskId);
+      this.saveTasks(next);
+      if (this.state.editingTaskId === taskId) {
+        this.state.editingTaskId = null;
+        this.state.editingFocusRequested = false;
+      }
+      this.state.focusNewTask = true;
+      this.renderDashboard();
+    },
+    setAllTasks(completed) {
+      const next = this.state.tasks.map((task) => ({ ...task, completed }));
+      this.saveTasks(next);
+      this.state.focusNewTask = false;
+      this.renderDashboard();
+    },
+    clearCompletedTasks() {
+      const next = this.state.tasks.filter((task) => !task.completed);
+      this.saveTasks(next);
+      if (this.state.editingTaskId && !next.some((task) => task.id === this.state.editingTaskId)) {
+        this.state.editingTaskId = null;
+        this.state.editingFocusRequested = false;
+      }
+      this.state.focusNewTask = true;
       this.renderDashboard();
     },
     loadBudgetItems() {
