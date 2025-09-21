@@ -1,6 +1,6 @@
 (function () {
   const storageKey = "wedding_profile_v1";
-  const allowedRoutes = ["#/welcome", "#/quiz", "#/dashboard"];
+  const allowedRoutes = ["#/quiz", "#/dashboard"];
   const monthNames = [
     "Январь",
     "Февраль",
@@ -21,7 +21,7 @@
     allowedRoutes,
     state: {
       profile: null,
-      currentRoute: "#/welcome",
+      currentRoute: "#/dashboard",
       currentStep: 0,
       modalOpen: false,
       lastFocused: null
@@ -30,11 +30,11 @@
       this.cacheDom();
       this.bindGlobalEvents();
       this.state.profile = this.loadProfile();
-      const defaultRoute = this.state.profile ? "#/dashboard" : "#/welcome";
-      if (!location.hash || !this.allowedRoutes.includes(location.hash)) {
+      const defaultRoute = "#/dashboard";
+      if (location.hash === "#/welcome") {
         location.replace(defaultRoute);
-      } else if (this.state.profile && location.hash === "#/welcome") {
-        location.replace("#/dashboard");
+      } else if (!location.hash || !this.allowedRoutes.includes(location.hash)) {
+        location.replace(defaultRoute);
       } else {
         this.handleRouteChange();
       }
@@ -63,18 +63,14 @@
       this.modalCloseBtn.addEventListener("click", () => this.closeModal());
     },
     handleRouteChange() {
-      const hash = location.hash || "#/welcome";
+      const hash = location.hash || "#/dashboard";
       this.state.profile = this.loadProfile();
-      if (this.state.profile && hash === "#/welcome") {
+      if (hash === "#/welcome") {
         location.replace("#/dashboard");
         return;
       }
-      if (!this.state.profile && hash === "#/dashboard") {
-        location.replace("#/welcome");
-        return;
-      }
       if (!this.allowedRoutes.includes(hash)) {
-        location.replace(this.state.profile ? "#/dashboard" : "#/welcome");
+        location.replace("#/dashboard");
         return;
       }
       this.state.currentRoute = hash;
@@ -85,9 +81,6 @@
     },
     render() {
       switch (this.state.currentRoute) {
-        case "#/welcome":
-          this.renderWelcome();
-          break;
         case "#/quiz":
           this.renderQuiz();
           break;
@@ -95,57 +88,8 @@
           this.renderDashboard();
           break;
         default:
-          this.renderWelcome();
+          this.renderDashboard();
       }
-    },
-    renderWelcome() {
-      this.appEl.innerHTML = `
-        <section class="card welcome">
-          <div class="welcome-layout">
-            <div class="welcome-content">
-              <h1>Планирование свадьбы без стресса</h1>
-              <p class="welcome-subtitle">Подберём подрядчиков, поможем с бюджетом и сроками — всё в одном месте. Пройдите короткий тест, и мы настроим рекомендации под вашу пару.</p>
-              <button type="button" id="start-quiz">Начать тест</button>
-              <p class="welcome-note">Это бесплатно. Прогресс сохраняется.</p>
-            </div>
-            <div class="welcome-hero" role="presentation">
-              <img src="https://images.unsplash.com/photo-1591604466107-ec97de577aff?q=80&w=2071&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D" alt="Счастливая пара на фоне горного озера" loading="lazy" decoding="async">
-            </div>
-          </div>
-          <div class="welcome-steps">
-            <h2>Как это работает</h2>
-            <ul class="steps-list">
-              <li>
-                <span class="step-icon" aria-hidden="true">📝</span>
-                <div>
-                  <h3>Ответьте на 11 вопросов</h3>
-                  <p>Расскажите немного о вашей паре и ожиданиях от праздника.</p>
-                </div>
-              </li>
-              <li>
-                <span class="step-icon" aria-hidden="true">📊</span>
-                <div>
-                  <h3>Получите персональный дашборд</h3>
-                  <p>Сводка ключевых параметров и дальнейшие шаги всегда под рукой.</p>
-                </div>
-              </li>
-              <li>
-                <span class="step-icon" aria-hidden="true">💞</span>
-                <div>
-                  <h3>Добавьте подрядчиков в избранное</h3>
-                  <p>Сохраняйте понравившихся специалистов и возвращайтесь к ним в любое время.</p>
-                </div>
-              </li>
-            </ul>
-          </div>
-        </section>
-      `;
-      const startButton = document.getElementById("start-quiz");
-      startButton.addEventListener("click", () => {
-        this.ensureProfile();
-        this.state.currentStep = 0;
-        location.hash = "#/quiz";
-      });
     },
     renderQuiz() {
       this.ensureProfile();
@@ -539,63 +483,99 @@
     },
     renderDashboard() {
       const profile = this.state.profile;
-      if (!profile) {
-        location.replace("#/welcome");
-        return;
-      }
+      const hasProfile = Boolean(profile);
       const summaryItems = [];
-      if (profile.vibe && profile.vibe.length) {
+      if (hasProfile && profile.vibe && profile.vibe.length) {
         summaryItems.push(`Атмосфера: ${profile.vibe.join(", ")}`);
       }
-      if (profile.style) {
+      if (hasProfile && profile.style) {
         summaryItems.push(`Стиль: ${profile.style}`);
       }
-      if (profile.city) {
+      if (hasProfile && profile.city) {
         summaryItems.push(`Город: ${profile.city}`);
       }
-      if (profile.guests) {
+      if (hasProfile && profile.guests) {
         summaryItems.push(`Гостей: ${profile.guests}`);
       }
-      if (profile.budgetRange) {
+      if (hasProfile && profile.budgetRange) {
         summaryItems.push(`Бюджет: ${profile.budgetRange}`);
       }
-      const summaryLine = summaryItems.map((item) => `<span>${item}</span>`).join("");
-      const daysBlock = this.renderCountdown(profile);
+      const summaryLine = summaryItems.length
+        ? `<div class="summary-line">${summaryItems.map((item) => `<span>${item}</span>`).join("")}</div>`
+        : "";
+      const summaryFallback = `<p class="dashboard-intro">Ваши ответы появятся здесь сразу после прохождения теста.</p>`;
+      const introBlock = hasProfile
+        ? summaryLine || summaryFallback
+        : `<p class="dashboard-intro">Пройдите короткий тест — он займёт пару минут и поможет настроить рекомендации под вашу пару. Нажмите на любой раздел, чтобы начать.</p>`;
+      const heading = hasProfile
+        ? `${profile.groomName || "Жених"} + ${profile.brideName || "Невеста"}, добро пожаловать!`
+        : "Персональный дашборд для вашей свадьбы";
+      const daysBlock = hasProfile ? this.renderCountdown(profile) : "";
       const cards = MODULE_CARDS.map((card) => `
-        <article class="dashboard-card ${card.size === "lg" ? "lg" : ""}" tabindex="0" data-card="${card.id}">
+        <article class="dashboard-card ${card.size === "lg" ? "lg" : ""}" tabindex="0" data-card="${card.id}" data-title="${card.title}">
           <h3>${card.title}</h3>
           <p>Персональные рекомендации появятся скоро.</p>
         </article>
       `).join("");
-      this.appEl.innerHTML = `
-        <section class="card">
-          <h1>${profile.groomName || "Жених"} + ${profile.brideName || "Невеста"}, добро пожаловать!</h1>
-          <div class="summary-line">${summaryLine}</div>
-          ${daysBlock}
-          <div class="dashboard-grid">${cards}</div>
-          <div class="actions" style="margin-top:2rem;">
+      const actionsBlock = hasProfile
+        ? `<div class="actions" style="margin-top:2rem;">
             <button type="button" id="edit-quiz">Редактировать ответы теста</button>
             <button type="button" class="secondary" id="reset-profile">Начать заново</button>
-          </div>
+          </div>`
+        : `<div class="actions" style="margin-top:2rem;">
+            <button type="button" id="start-quiz">Пройти тест</button>
+          </div>`;
+      this.appEl.innerHTML = `
+        <section class="card">
+          <h1>${heading}</h1>
+          ${introBlock}
+          ${daysBlock}
+          <div class="dashboard-grid">${cards}</div>
+          ${actionsBlock}
         </section>
       `;
+      const handleCardActivation = (event, card) => {
+        if (!this.state.profile) {
+          if (event) {
+            event.preventDefault();
+          }
+          this.state.currentStep = 0;
+          this.ensureProfile();
+          location.hash = "#/quiz";
+          return;
+        }
+        if (event && event.type === "keydown") {
+          event.preventDefault();
+        }
+        this.openModal(card);
+      };
       this.appEl.querySelectorAll(".dashboard-card").forEach((card) => {
-        card.addEventListener("click", () => this.openModal(card));
+        card.addEventListener("click", (event) => handleCardActivation(event, card));
         card.addEventListener("keydown", (event) => {
           if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            this.openModal(card);
+            handleCardActivation(event, card);
           }
         });
       });
-      document.getElementById("edit-quiz").addEventListener("click", () => {
-        this.state.currentStep = 0;
-        location.hash = "#/quiz";
-      });
-      document.getElementById("reset-profile").addEventListener("click", () => {
-        this.clearProfile();
-        location.hash = "#/welcome";
-      });
+      if (hasProfile) {
+        document.getElementById("edit-quiz").addEventListener("click", () => {
+          this.state.currentStep = 0;
+          location.hash = "#/quiz";
+        });
+        document.getElementById("reset-profile").addEventListener("click", () => {
+          this.clearProfile();
+          location.hash = "#/dashboard";
+        });
+      } else {
+        const startButton = document.getElementById("start-quiz");
+        if (startButton) {
+          startButton.addEventListener("click", () => {
+            this.state.currentStep = 0;
+            this.ensureProfile();
+            location.hash = "#/quiz";
+          });
+        }
+      }
     },
     renderCountdown(profile) {
       if (!profile.year || !profile.month) {
@@ -621,7 +601,18 @@
     openModal(card) {
       this.state.modalOpen = true;
       this.state.lastFocused = card || document.activeElement;
-      this.modalBody.textContent = "Скоро появятся подрядчики и фильтры под ваш профиль 👰🤵";
+      let sectionTitle = "этот раздел";
+      if (card) {
+        if (card.dataset && card.dataset.title) {
+          sectionTitle = card.dataset.title;
+        } else {
+          const heading = card.querySelector("h3");
+          if (heading) {
+            sectionTitle = heading.textContent;
+          }
+        }
+      }
+      this.modalBody.textContent = `Раздел «${sectionTitle}» скоро появится. Подрядчики и фильтры будут настроены под ваш профиль 👰🤵`;
       this.modalOverlay.classList.add("active");
       this.modalOverlay.setAttribute("aria-hidden", "false");
       this.modalCloseBtn.focus();
