@@ -21,6 +21,16 @@
   const App = {
     storageKey,
     allowedRoutes,
+    budgetColors: [
+      "#E07A8B",
+      "#FFB677",
+      "#FFD166",
+      "#70C1B3",
+      "#9C7BD3",
+      "#F4976C",
+      "#5C80BC",
+      "#73D2DE"
+    ],
     state: {
       profile: null,
       currentRoute: "#/dashboard",
@@ -575,24 +585,54 @@
       const totalBudget = budgetEntries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
       const previousTotal = this.state.lastBudgetTotal || 0;
       this.state.lastBudgetTotal = totalBudget;
-      const budgetVisual = budgetEntries
-        .map((entry, index) => {
-          const value = Number(entry.amount || 0);
-          const amount = Number.isFinite(value) ? value : 0;
-          const displayId = `budget-amount-${entry.id || index}`;
-          return `
-            <div class="budget-visual__item">
-              <div class="budget-visual__info">
-                <span class="budget-visual__title">${entry.title}</span>
-                <span class="budget-visual__amount" id="${displayId}" data-amount="${amount}">${this.formatCurrency(amount)}</span>
-              </div>
-              <div class="budget-visual__track">
-                <div class="budget-visual__bar" data-value="${amount}" data-total="${totalBudget}"></div>
-              </div>
-            </div>
-          `;
-        })
-        .join("");
+      const chartBackground = this.buildBudgetChart(budgetEntries, totalBudget);
+      const chartStyle = chartBackground ? `style="--chart-bg: ${chartBackground}"` : "";
+      const budgetEntriesMarkup = budgetEntries.length
+        ? budgetEntries
+            .map((entry, index) => {
+              const amountValue = Math.max(0, Math.round(Number(entry.amount) || 0));
+              const entryId = entry.id || `budget-entry-${index}`;
+              const color = this.getBudgetColor(index);
+              const safeTitle = this.escapeAttribute(entry.title || "");
+              const ariaTitle = this.escapeAttribute(entry.title || "Статья бюджета");
+              return `
+                <div class="budget-entry" data-entry-id="${entryId}">
+                  <span class="budget-entry__color" style="--entry-color: ${color}" aria-hidden="true"></span>
+                  <label class="sr-only" for="budget-title-${entryId}">Название статьи бюджета</label>
+                  <input
+                    id="budget-title-${entryId}"
+                    class="budget-entry__title"
+                    type="text"
+                    value="${safeTitle}"
+                    data-entry-id="${entryId}"
+                    data-original-title="${safeTitle}"
+                    placeholder="Название"
+                  >
+                  <div class="budget-entry__amount">
+                    <label class="sr-only" for="budget-amount-${entryId}">Сумма для ${ariaTitle}</label>
+                    <input
+                      id="budget-amount-${entryId}"
+                      class="budget-entry__amount-input"
+                      type="number"
+                      min="0"
+                      step="1000"
+                      value="${amountValue}"
+                      data-entry-id="${entryId}"
+                      data-original-amount="${amountValue}"
+                    >
+                    <span class="budget-entry__currency">₽</span>
+                  </div>
+                  <button
+                    type="button"
+                    class="budget-entry__delete"
+                    data-entry-id="${entryId}"
+                    aria-label="Удалить статью «${ariaTitle}»"
+                  ></button>
+                </div>
+              `;
+            })
+            .join("")
+        : `<p class="budget-entries__empty">Добавьте статьи бюджета, чтобы спланировать расходы.</p>`;
       const actionsBlock = quizCompleted
         ? `<div class="actions dashboard-actions">
             <button type="button" id="edit-quiz">Редактировать ответы теста</button>
@@ -637,11 +677,15 @@
                 <h2 id="budget-title">Бюджет</h2>
               </div>
               <div class="budget-summary">
-                <span class="budget-summary__label">Заложено</span>
-                <span class="budget-summary__value" id="budget-total" data-previous="${previousTotal}">${this.formatCurrency(previousTotal)}</span>
+                <div class="budget-total">
+                  <div class="budget-total__chart" ${chartStyle}>
+                    <span class="budget-total__value" id="budget-total" data-previous="${previousTotal}">${this.formatCurrency(previousTotal)}</span>
+                  </div>
+                  <span class="budget-total__caption">Общий бюджет</span>
+                </div>
               </div>
-              <div class="budget-visual">
-                ${budgetVisual}
+              <div class="budget-entries">
+                ${budgetEntriesMarkup}
               </div>
               <form id="budget-form" class="budget-form">
                 <div class="budget-form__fields">
@@ -710,6 +754,7 @@
           this.addBudgetEntry(title, Math.round(amount));
         });
       }
+      this.bindBudgetEntryControls();
       const editButton = document.getElementById("edit-quiz");
       if (editButton) {
         editButton.addEventListener("click", () => {
@@ -772,19 +817,50 @@
       this.updateProfile({ budgetEntries: next });
       this.renderDashboard();
     },
+    updateBudgetEntry(entryId, patch) {
+      if (!entryId) return;
+      const current = Array.isArray(this.state.profile?.budgetEntries) ? this.state.profile.budgetEntries : [];
+      let changed = false;
+      const next = current.map((entry) => {
+        if (entry.id !== entryId) {
+          return entry;
+        }
+        const updated = { ...entry };
+        if (Object.prototype.hasOwnProperty.call(patch, "title")) {
+          const nextTitle = typeof patch.title === "string" ? patch.title : entry.title;
+          if (nextTitle !== entry.title) {
+            updated.title = nextTitle;
+            changed = true;
+          }
+        }
+        if (Object.prototype.hasOwnProperty.call(patch, "amount")) {
+          const safeAmount = Number.isFinite(patch.amount) ? Math.max(0, Math.round(patch.amount)) : entry.amount;
+          if (safeAmount !== entry.amount) {
+            updated.amount = safeAmount;
+            changed = true;
+          }
+        }
+        return updated;
+      });
+      if (!changed) return;
+      this.updateProfile({ budgetEntries: next });
+      this.renderDashboard();
+    },
+    removeBudgetEntry(entryId) {
+      if (!entryId) return;
+      const current = Array.isArray(this.state.profile?.budgetEntries) ? this.state.profile.budgetEntries : [];
+      const next = current.filter((entry) => entry.id !== entryId);
+      if (next.length === current.length) {
+        return;
+      }
+      this.updateProfile({ budgetEntries: next });
+      this.renderDashboard();
+    },
     animateBudget(previousTotal, totalBudget) {
       const totalEl = document.getElementById("budget-total");
       if (totalEl) {
         this.animateNumber(totalEl, previousTotal, totalBudget);
       }
-      const bars = this.appEl.querySelectorAll(".budget-visual__bar");
-      bars.forEach((bar) => {
-        const value = Number(bar.dataset.value) || 0;
-        const width = totalBudget > 0 ? Math.min(Math.max((value / totalBudget) * 100, value > 0 ? 6 : 0), 100) : 0;
-        requestAnimationFrame(() => {
-          bar.style.width = `${width}%`;
-        });
-      });
     },
     animateNumber(element, from, to) {
       const startValue = Number.isFinite(from) ? from : 0;
@@ -802,6 +878,92 @@
         }
       };
       requestAnimationFrame(step);
+    },
+    bindBudgetEntryControls() {
+      const titleInputs = this.appEl.querySelectorAll(".budget-entry__title");
+      titleInputs.forEach((input) => {
+        input.addEventListener("change", (event) => {
+          const target = event.currentTarget;
+          if (!(target instanceof HTMLInputElement)) return;
+          const entryId = target.dataset.entryId;
+          if (!entryId) return;
+          const nextValue = target.value.trim();
+          if (!nextValue) {
+            target.value = target.dataset.originalTitle || "";
+            target.focus();
+            return;
+          }
+          this.updateBudgetEntry(entryId, { title: nextValue });
+        });
+      });
+      const amountInputs = this.appEl.querySelectorAll(".budget-entry__amount-input");
+      amountInputs.forEach((input) => {
+        input.addEventListener("change", (event) => {
+          const target = event.currentTarget;
+          if (!(target instanceof HTMLInputElement)) return;
+          const entryId = target.dataset.entryId;
+          if (!entryId) return;
+          const value = Number(target.value);
+          if (!Number.isFinite(value) || value < 0) {
+            const original = target.dataset.originalAmount;
+            target.value = original !== undefined ? original : "0";
+            target.focus();
+            return;
+          }
+          this.updateBudgetEntry(entryId, { amount: value });
+        });
+      });
+      const deleteButtons = this.appEl.querySelectorAll(".budget-entry__delete");
+      deleteButtons.forEach((button) => {
+        button.addEventListener("click", (event) => {
+          const target = event.currentTarget;
+          if (!(target instanceof HTMLElement)) return;
+          const entryId = target.dataset.entryId;
+          if (!entryId) return;
+          this.removeBudgetEntry(entryId);
+        });
+      });
+    },
+    buildBudgetChart(entries, totalBudget) {
+      const total = Number.isFinite(totalBudget) ? totalBudget : 0;
+      if (total <= 0 || !Array.isArray(entries) || entries.length === 0) {
+        return "";
+      }
+      const nonZeroEntries = entries
+        .map((entry, index) => ({
+          amount: Math.max(0, Number(entry.amount) || 0),
+          index
+        }))
+        .filter((item) => item.amount > 0);
+      if (!nonZeroEntries.length) {
+        return "";
+      }
+      let accumulated = 0;
+      const segments = nonZeroEntries.map((item, segmentIndex) => {
+        const start = (accumulated / total) * 360;
+        accumulated += item.amount;
+        const isLast = segmentIndex === nonZeroEntries.length - 1;
+        const end = isLast ? 360 : (accumulated / total) * 360;
+        const color = this.getBudgetColor(item.index);
+        return `${color} ${start}deg ${end}deg`;
+      });
+      return `conic-gradient(${segments.join(", ")})`;
+    },
+    getBudgetColor(index) {
+      if (!Number.isInteger(index)) return this.budgetColors[0];
+      const palette = this.budgetColors;
+      return palette[index % palette.length];
+    },
+    escapeAttribute(value) {
+      if (typeof value !== "string") return "";
+      const map = {
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+      };
+      return value.replace(/[&<>"']/g, (char) => map[char] || char);
     },
     formatCurrency(value) {
       const safeValue = Number.isFinite(value) ? value : 0;
