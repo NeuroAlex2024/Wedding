@@ -487,7 +487,7 @@ button.secondary:hover {
 
 .budget-summary__chart {
   position: relative;
-  width: min(180px, 42vw);
+  width: min(168px, 40vw);
   aspect-ratio: 1 / 1;
   border-radius: 50%;
   background: var(
@@ -503,7 +503,7 @@ button.secondary:hover {
 .budget-summary__chart::after {
   content: "";
   position: absolute;
-  inset: 22%;
+  inset: 28%;
   border-radius: 50%;
   background: #fff;
   box-shadow: inset 0 0 0 1px rgba(224, 122, 139, 0.12);
@@ -515,13 +515,13 @@ button.secondary:hover {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.35rem;
+  gap: 0.3rem;
   text-align: center;
   z-index: 1;
 }
 
 .budget-summary__value {
-  font-size: clamp(1.5rem, 1.3vw + 1.1rem, 2.3rem);
+  font-size: clamp(1.35rem, 1.1vw + 1rem, 2rem);
   font-weight: 700;
   color: var(--accent-dark);
   letter-spacing: -0.01em;
@@ -529,20 +529,21 @@ button.secondary:hover {
 
 .budget-visual {
   display: grid;
-  gap: 1rem;
+  gap: 0.85rem;
 }
 
 .budget-visual__item {
   display: grid;
-  gap: 0.5rem;
+  gap: 0.4rem;
 }
 
 .budget-visual__info {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
+  gap: 0.5rem;
   font-weight: 600;
   color: var(--txt);
+  font-size: 0.95rem;
 }
 
 .budget-visual__title {
@@ -553,19 +554,20 @@ button.secondary:hover {
   color: var(--muted);
   font-weight: 600;
   margin-left: auto;
+  font-size: 0.93rem;
 }
 
 .budget-visual__dot {
-  width: 0.75rem;
-  height: 0.75rem;
+  width: 0.65rem;
+  height: 0.65rem;
   border-radius: 50%;
   background: var(--dot-color, var(--accent));
-  box-shadow: 0 0 0 4px rgba(224, 122, 139, 0.12);
+  box-shadow: 0 0 0 3px rgba(224, 122, 139, 0.12);
   flex: 0 0 auto;
 }
 
 .budget-visual__track {
-  height: 10px;
+  height: 8px;
   border-radius: 999px;
   background: rgba(224, 122, 139, 0.12);
   overflow: hidden;
@@ -581,20 +583,20 @@ button.secondary:hover {
 
 .budget-visual__actions {
   display: flex;
-  gap: 0.35rem;
-  margin-left: 0.75rem;
+  gap: 0.3rem;
+  margin-left: 0.5rem;
 }
 
 .budget-visual__action {
-  width: 2.15rem;
-  height: 2.15rem;
+  width: 1.9rem;
+  height: 1.9rem;
   padding: 0;
   display: grid;
   place-items: center;
   border-radius: 50%;
   background: rgba(224, 122, 139, 0.16);
   color: var(--accent-dark);
-  font-size: 1.2rem;
+  font-size: 1.05rem;
   line-height: 1;
 }
 
@@ -614,19 +616,19 @@ button.secondary:hover {
 .budget-visual__item--editing {
   background: rgba(224, 122, 139, 0.08);
   border-radius: 18px;
-  padding: 0.75rem;
+  padding: 0.65rem;
 }
 
 .budget-visual__edit {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.6rem;
 }
 
 .budget-visual__edit-fields {
   display: grid;
   grid-template-columns: auto 1fr minmax(130px, 160px);
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.6rem;
 }
 
 .budget-visual__field input {
@@ -635,7 +637,7 @@ button.secondary:hover {
 
 .budget-visual__edit-actions {
   display: flex;
-  gap: 0.75rem;
+  gap: 0.6rem;
   flex-wrap: wrap;
 }
 
@@ -780,7 +782,7 @@ button.secondary:hover {
   }
 
   .budget-summary__chart {
-    width: min(160px, 60vw);
+    width: min(150px, 60vw);
     box-shadow: 0 12px 26px rgba(224, 122, 139, 0.16);
   }
 
@@ -793,13 +795,13 @@ button.secondary:hover {
   }
 
   .budget-visual__actions {
-    margin-left: 0.5rem;
+    margin-left: 0.4rem;
   }
 
   .budget-visual__action {
-    width: 2rem;
-    height: 2rem;
-    font-size: 1.1rem;
+    width: 1.75rem;
+    height: 1.75rem;
+    font-size: 1rem;
   }
 
   .checklist-form {
