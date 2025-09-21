@@ -504,12 +504,10 @@
         ? `<div class="summary-line">${summaryItems.map((item) => `<span>${item}</span>`).join("")}</div>`
         : "";
       const summaryFallback = `<p class="dashboard-intro">Ваши ответы появятся здесь сразу после прохождения теста.</p>`;
-      const introBlock = hasProfile
-        ? summaryLine || summaryFallback
-        : `<p class="dashboard-intro">Пройдите короткий тест — он займёт пару минут и поможет настроить рекомендации под вашу пару. Нажмите на любой раздел, чтобы начать.</p>`;
+      const introBlock = hasProfile ? summaryLine || summaryFallback : "";
       const heading = hasProfile
         ? `${profile.groomName || "Жених"} + ${profile.brideName || "Невеста"}, добро пожаловать!`
-        : "Персональный дашборд для вашей свадьбы";
+        : "Планирование свадьбы без стресса";
       const daysBlock = hasProfile ? this.renderCountdown(profile) : "";
       const cards = MODULE_CARDS.map((card) => `
         <article class="dashboard-card ${card.size === "lg" ? "lg" : ""}" tabindex="0" data-card="${card.id}" data-title="${card.title}">
@@ -522,9 +520,7 @@
             <button type="button" id="edit-quiz">Редактировать ответы теста</button>
             <button type="button" class="secondary" id="reset-profile">Начать заново</button>
           </div>`
-        : `<div class="actions" style="margin-top:2rem;">
-            <button type="button" id="start-quiz">Пройти тест</button>
-          </div>`;
+        : "";
       this.appEl.innerHTML = `
         <section class="card">
           <h1>${heading}</h1>
@@ -566,15 +562,6 @@
           this.clearProfile();
           location.hash = "#/dashboard";
         });
-      } else {
-        const startButton = document.getElementById("start-quiz");
-        if (startButton) {
-          startButton.addEventListener("click", () => {
-            this.state.currentStep = 0;
-            this.ensureProfile();
-            location.hash = "#/quiz";
-          });
-        }
       }
     },
     renderCountdown(profile) {
