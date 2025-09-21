@@ -18,34 +18,18 @@
 
   const App = {
     storageKey,
-    tasksStorageKey: `${storageKey}_tasks`,
-    budgetStorageKey: `${storageKey}_budget`,
     allowedRoutes,
-    currencyFormatter: new Intl.NumberFormat("ru-RU", {
-      style: "currency",
-      currency: "RUB",
-      maximumFractionDigits: 0
-    }),
     state: {
       profile: null,
       currentRoute: "#/dashboard",
       currentStep: 0,
       modalOpen: false,
-      lastFocused: null,
-      tasks: [],
-      budgetItems: [],
-      lastBudgetTotal: 0,
-      editingTaskId: null,
-      focusNewTask: false,
-      editingFocusRequested: false
+      lastFocused: null
     },
     init() {
       this.cacheDom();
       this.bindGlobalEvents();
       this.state.profile = this.loadProfile();
-      this.state.tasks = this.loadTasks();
-      this.state.budgetItems = this.loadBudgetItems();
-      this.state.lastBudgetTotal = this.state.budgetItems.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
       const defaultRoute = "#/dashboard";
       if (location.hash === "#/welcome") {
         location.replace(defaultRoute);
@@ -530,338 +514,56 @@
         </div>
       `;
       const daysBlock = hasProfile ? this.renderCountdown(profile) : "";
-      const quickLinks = DASHBOARD_LINKS.map((link) => `
-        <button type="button" class="module-pill" data-open-modal="true" data-title="${link.label}">
-          <span>${link.label}</span>
-        </button>
-      `).join("");
-      const toolsCards = DASHBOARD_TOOLS.map((tool) => `
-        <article class="tool-card" tabindex="0" data-open-modal="true" data-title="${tool.title}">
-          <div class="tool-card__icon" aria-hidden="true">${tool.icon}</div>
-          <div class="tool-card__content">
-            <h3>${tool.title}</h3>
-            <p>${tool.description}</p>
-          </div>
+      const cards = MODULE_CARDS.map((card) => `
+        <article class="dashboard-card ${card.size === "lg" ? "lg" : ""}" tabindex="0" data-card="${card.id}" data-title="${card.title}">
+          <h3>${card.title}</h3>
+          <p>Персональные рекомендации появятся скоро.</p>
         </article>
       `).join("");
-      const totalTasks = this.state.tasks.length;
-      const completedTasks = this.state.tasks.filter((task) => task.completed).length;
-      const completionRate = totalTasks ? Math.round((completedTasks / totalTasks) * 100) : 0;
-      const allCompleted = totalTasks > 0 && completedTasks === totalTasks;
-      const completeAllLabel = allCompleted ? "Снять все отметки" : "Отметить все";
-      const clearButtonAttributes = completedTasks ? "" : "disabled aria-disabled=\"true\"";
-      const tasksMarkup = totalTasks
-        ? this.state.tasks
-            .map((task) => {
-              const safeTitle = this.escapeHtml(task.title);
-              if (this.state.editingTaskId === task.id) {
-                return `
-                  <li class="checklist-row is-editing" data-task-id="${task.id}">
-                    <form class="checklist-edit-form">
-                      <label class="visually-hidden" for="edit-${task.id}">Изменить задачу</label>
-                      <input type="text" id="edit-${task.id}" name="edit-task" value="${safeTitle}" required autocomplete="off">
-                      <div class="checklist-edit-form__actions">
-                        <button type="submit">Сохранить</button>
-                        <button type="button" class="secondary checklist-cancel-edit">Отмена</button>
-                      </div>
-                    </form>
-                  </li>
-                `;
-              }
-              return `
-                <li class="checklist-row ${task.completed ? "is-complete" : ""}" data-task-id="${task.id}">
-                  <label class="checklist-item ${task.completed ? "completed" : ""}">
-                    <input type="checkbox" data-task-id="${task.id}" ${task.completed ? "checked" : ""}>
-                    <span>${safeTitle}</span>
-                  </label>
-                  <div class="checklist-item__actions">
-                    <button type="button" class="icon-button checklist-edit" aria-label="Редактировать задачу «${safeTitle}»">✏️</button>
-                    <button type="button" class="icon-button checklist-remove" aria-label="Удалить задачу «${safeTitle}»">✖️</button>
-                  </div>
-                </li>
-              `;
-            })
-            .join("")
-        : `<li class="checklist-empty">Добавьте первую задачу, чтобы не забыть важное.</li>`;
-      const budgetTotal = this.state.budgetItems.reduce(
-        (sum, item) => sum + (Number(item.amount) || 0),
-        0
-      );
-      const budgetSegments = this.state.budgetItems.length
-        ? `
-            <div class="budget-visual" aria-hidden="true">
-              <div class="budget-visual__track" id="budget-bar">
-                ${this.state.budgetItems
-                  .map((item, index) => `
-                    <span class="budget-visual__segment" data-amount="${Number(item.amount) || 0}" style="--segment-color: ${BUDGET_COLORS[index % BUDGET_COLORS.length]}"></span>
-                  `)
-                  .join("")}
-              </div>
-            </div>
-          `
-        : "";
-      const budgetList = this.state.budgetItems.length
-        ? this.state.budgetItems
-            .map((item, index) => `
-              <li class="budget-item">
-                <span class="budget-item__dot" style="--dot-color: ${BUDGET_COLORS[index % BUDGET_COLORS.length]}"></span>
-                <div class="budget-item__info">
-                  <span class="budget-item__name">${item.title}</span>
-                  <span class="budget-item__amount">${this.formatCurrency(item.amount)}</span>
-                </div>
-              </li>
-            `)
-            .join("")
-        : `<li class="budget-empty">Пока нет расходов — добавьте первую статью бюджета.</li>`;
       const actionsBlock = hasProfile
-        ? `<div class="actions dashboard-actions">
+        ? `<div class="actions" style="margin-top:2rem;">
             <button type="button" id="edit-quiz">Редактировать ответы теста</button>
           </div>`
         : "";
-      const totalDisplay = this.formatCurrency(this.state.lastBudgetTotal || budgetTotal);
-      const checklistToolbar = `
-        <div class="checklist-toolbar">
-          <div class="checklist-progress" role="status" aria-live="polite">
-            <span class="checklist-progress__label">Готово ${completedTasks} из ${totalTasks}</span>
-            <div class="checklist-progress__bar">
-              <span class="checklist-progress__fill" style="width: ${completionRate}%"></span>
-            </div>
-          </div>
-          <div class="checklist-toolbar__actions">
-            <button
-              type="button"
-              class="chip-button"
-              id="checklist-complete-all"
-              data-mode="${allCompleted ? "reset" : "complete"}"
-              aria-pressed="${allCompleted ? "true" : "false"}"
-            >
-              ${completeAllLabel}
-            </button>
-            <button type="button" class="chip-button destructive" id="checklist-clear-completed" ${clearButtonAttributes}>
-              Очистить выполненные
-            </button>
-          </div>
-        </div>
-      `;
       this.appEl.innerHTML = `
-        <section class="card dashboard-card-shell">
-          <div class="dashboard-top">
-            <nav class="dashboard-links" aria-label="Основные разделы">
-              <div class="dashboard-links__inner">
-                ${quickLinks}
-              </div>
-            </nav>
-            ${heroImage}
-          </div>
-          <div class="dashboard-header">
-            <h1>${heading}</h1>
-            ${introBlock}
-            ${daysBlock}
-            ${actionsBlock}
-          </div>
-          <div class="dashboard-main">
-            <section class="module checklist-module" aria-labelledby="checklist-title">
-              <div class="module-heading">
-                <h2 id="checklist-title">Контрольный список</h2>
-                <p>Отмечайте готовые задачи и добавляйте новые.</p>
-              </div>
-              ${checklistToolbar}
-              <ul class="checklist" id="checklist-list">
-                ${tasksMarkup}
-              </ul>
-              <form id="checklist-form" class="checklist-form">
-                <label for="new-task" class="visually-hidden">Новая задача</label>
-                <div class="checklist-form__row">
-                  <input type="text" id="new-task" name="new-task" placeholder="Добавить задачу" autocomplete="off" required>
-                  <button type="submit">Добавить</button>
-                </div>
-              </form>
-            </section>
-            <section class="module tools-module" aria-labelledby="tools-title">
-              <div class="module-heading">
-                <h2 id="tools-title">Инструменты</h2>
-                <p>Ваш набор для уверенного планирования.</p>
-              </div>
-              <div class="tools-grid">
-                ${toolsCards}
-              </div>
-            </section>
-            <section class="module budget-module" aria-labelledby="budget-title">
-              <div class="module-heading">
-                <h2 id="budget-title">Бюджет</h2>
-                <p>Визуализация расходов в реальном времени.</p>
-              </div>
-              <div class="budget-summary">
-                <span class="budget-summary__label">Уже запланировано</span>
-                <span class="budget-summary__value" id="budget-total-value" aria-live="polite">${totalDisplay}</span>
-              </div>
-              ${budgetSegments}
-              <ul class="budget-list">
-                ${budgetList}
-              </ul>
-              <form id="budget-form" class="budget-form">
-                <div class="budget-form__row">
-                  <label class="visually-hidden" for="budget-name">Название расхода</label>
-                  <input type="text" id="budget-name" name="budget-name" placeholder="Новая статья" autocomplete="off" required>
-                </div>
-                <div class="budget-form__row">
-                  <label class="visually-hidden" for="budget-amount">Сумма расхода</label>
-                  <input type="number" id="budget-amount" name="budget-amount" placeholder="Сумма, ₽" min="0" step="1000" required>
-                </div>
-                <button type="submit" class="budget-submit">Добавить расход</button>
-              </form>
-            </section>
-          </div>
+        <section class="card">
+          ${heroImage}
+          <h1>${heading}</h1>
+          ${introBlock}
+          ${daysBlock}
+          <div class="dashboard-grid">${cards}</div>
+          ${actionsBlock}
         </section>
       `;
-      const modalTriggers = this.appEl.querySelectorAll('[data-open-modal="true"]');
-      modalTriggers.forEach((trigger) => {
-        trigger.addEventListener("click", (event) => {
-          event.preventDefault();
-          this.openModal(trigger);
-        });
-        trigger.addEventListener("keydown", (event) => {
-          if (event.key === "Enter" || event.key === " ") {
+      const handleCardActivation = (event, card) => {
+        if (!this.state.profile) {
+          if (event) {
             event.preventDefault();
-            this.openModal(trigger);
+          }
+          this.state.currentStep = 0;
+          this.ensureProfile();
+          location.hash = "#/quiz";
+          return;
+        }
+        if (event && event.type === "keydown") {
+          event.preventDefault();
+        }
+        this.openModal(card);
+      };
+      this.appEl.querySelectorAll(".dashboard-card").forEach((card) => {
+        card.addEventListener("click", (event) => handleCardActivation(event, card));
+        card.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            handleCardActivation(event, card);
           }
         });
       });
       if (hasProfile) {
-        const editQuizButton = document.getElementById("edit-quiz");
-        if (editQuizButton) {
-          editQuizButton.addEventListener("click", () => {
-            this.state.currentStep = 0;
-            location.hash = "#/quiz";
-          });
-        }
-      }
-      const checklistForm = document.getElementById("checklist-form");
-      const newTaskInput = document.getElementById("new-task");
-      if (checklistForm && newTaskInput) {
-        checklistForm.addEventListener("submit", (event) => {
-          event.preventDefault();
-          const value = newTaskInput.value.trim();
-          if (!value) {
-            newTaskInput.focus();
-            return;
-          }
-          this.addTask(value);
+        document.getElementById("edit-quiz").addEventListener("click", () => {
+          this.state.currentStep = 0;
+          location.hash = "#/quiz";
         });
       }
-      const checklistList = document.getElementById("checklist-list");
-      if (checklistList) {
-        checklistList.addEventListener("change", (event) => {
-          const target = event.target;
-          if (target && target.matches('input[type="checkbox"][data-task-id]')) {
-            const { taskId } = target.dataset;
-            this.toggleTask(taskId, target.checked);
-          }
-        });
-        checklistList.addEventListener("click", (event) => {
-          const editBtn = event.target.closest(".checklist-edit");
-          if (editBtn) {
-            const item = editBtn.closest("[data-task-id]");
-            if (item) {
-              this.startTaskEdit(item.dataset.taskId);
-            }
-            return;
-          }
-          const removeBtn = event.target.closest(".checklist-remove");
-          if (removeBtn) {
-            const item = removeBtn.closest("[data-task-id]");
-            if (item) {
-              this.deleteTask(item.dataset.taskId);
-            }
-            return;
-          }
-          const cancelBtn = event.target.closest(".checklist-cancel-edit");
-          if (cancelBtn) {
-            this.cancelTaskEdit();
-          }
-        });
-        checklistList.addEventListener("submit", (event) => {
-          if (event.target.matches(".checklist-edit-form")) {
-            event.preventDefault();
-            const form = event.target;
-            const item = form.closest("[data-task-id]");
-            if (!item) return;
-            const input = form.querySelector('input[name="edit-task"]');
-            if (!input) return;
-            const value = input.value.trim();
-            if (!value) {
-              input.focus();
-              return;
-            }
-            this.saveTaskEdit(item.dataset.taskId, value);
-          }
-        });
-        checklistList.addEventListener("keydown", (event) => {
-          if (event.key === "Escape" && event.target.closest(".checklist-edit-form")) {
-            event.preventDefault();
-            this.cancelTaskEdit();
-          }
-        });
-      }
-      const completeAllButton = document.getElementById("checklist-complete-all");
-      if (completeAllButton) {
-        completeAllButton.addEventListener("click", () => {
-          const mode = completeAllButton.dataset.mode;
-          this.setAllTasks(mode !== "reset");
-        });
-      }
-      const clearCompletedButton = document.getElementById("checklist-clear-completed");
-      if (clearCompletedButton) {
-        clearCompletedButton.addEventListener("click", () => {
-          if (!clearCompletedButton.disabled) {
-            this.clearCompletedTasks();
-          }
-        });
-      }
-      if (this.state.focusNewTask) {
-        requestAnimationFrame(() => {
-          const input = document.getElementById("new-task");
-          if (input) {
-            input.focus();
-          }
-        });
-        this.state.focusNewTask = false;
-      }
-      if (this.state.editingFocusRequested) {
-        requestAnimationFrame(() => {
-          const editInput = document.getElementById(`edit-${this.state.editingTaskId}`);
-          if (editInput) {
-            editInput.focus();
-            editInput.select();
-          }
-        });
-        this.state.editingFocusRequested = false;
-      }
-      const budgetForm = document.getElementById("budget-form");
-      if (budgetForm) {
-        const nameInput = document.getElementById("budget-name");
-        const amountInput = document.getElementById("budget-amount");
-        budgetForm.addEventListener("submit", (event) => {
-          event.preventDefault();
-          const title = nameInput.value.trim();
-          const amount = Number(amountInput.value);
-          if (!title) {
-            nameInput.focus();
-            return;
-          }
-          if (!Number.isFinite(amount) || amount <= 0) {
-            amountInput.focus();
-            return;
-          }
-          this.addBudgetItem(title, amount);
-        });
-      }
-      const budgetTotalEl = document.getElementById("budget-total-value");
-      if (budgetTotalEl) {
-        this.animateNumber(budgetTotalEl, this.state.lastBudgetTotal || 0, budgetTotal);
-      }
-      this.updateBudgetSegments(budgetTotal);
-      this.state.lastBudgetTotal = budgetTotal;
     },
     renderCountdown(profile) {
       if (!profile.year || !profile.month) {
@@ -954,188 +656,6 @@
         }
       };
       requestAnimationFrame(animate);
-    },
-    generateId(prefix) {
-      return `${prefix}-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36)}`;
-    },
-    escapeHtml(value) {
-      return String(value)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
-    },
-    formatCurrency(value) {
-      return this.currencyFormatter.format(Math.max(0, Math.round(Number(value) || 0)));
-    },
-    animateNumber(element, from, to, duration = 700) {
-      if (!element) return;
-      const start = performance.now();
-      const diff = to - from;
-      const step = (time) => {
-        const elapsed = Math.min((time - start) / duration, 1);
-        const current = from + diff * elapsed;
-        element.textContent = this.formatCurrency(current);
-        if (elapsed < 1) {
-          requestAnimationFrame(step);
-        }
-      };
-      requestAnimationFrame(step);
-    },
-    updateBudgetSegments(total) {
-      const track = this.appEl.querySelector("#budget-bar");
-      if (!track) return;
-      const segments = track.querySelectorAll(".budget-visual__segment");
-      segments.forEach((segment) => {
-        const amount = Number(segment.dataset.amount) || 0;
-        const target = total > 0 ? (amount / total) * 100 : 0;
-        requestAnimationFrame(() => {
-          segment.style.width = `${target}%`;
-        });
-      });
-    },
-    loadTasks() {
-      try {
-        const raw = localStorage.getItem(this.tasksStorageKey);
-        if (!raw) {
-          return DEFAULT_CHECKLIST.map((task) => ({ ...task }));
-        }
-        const parsed = JSON.parse(raw);
-        if (!Array.isArray(parsed) || !parsed.length) {
-          return DEFAULT_CHECKLIST.map((task) => ({ ...task }));
-        }
-        return parsed
-          .filter((task) => task && typeof task.title === "string" && task.title.trim().length)
-          .map((task) => ({
-            id: task.id || this.generateId("task"),
-            title: task.title.trim(),
-            completed: Boolean(task.completed)
-          }));
-      } catch (error) {
-        console.error("Не удалось загрузить задачи", error);
-        return DEFAULT_CHECKLIST.map((task) => ({ ...task }));
-      }
-    },
-    saveTasks(tasks) {
-      try {
-        localStorage.setItem(this.tasksStorageKey, JSON.stringify(tasks));
-        this.state.tasks = tasks;
-      } catch (error) {
-        console.error("Не удалось сохранить задачи", error);
-      }
-    },
-    addTask(title) {
-      const trimmed = title.trim();
-      if (!trimmed) return;
-      const newTask = { id: this.generateId("task"), title: trimmed, completed: false };
-      const next = [newTask, ...this.state.tasks];
-      this.saveTasks(next);
-      this.state.editingTaskId = null;
-      this.state.editingFocusRequested = false;
-      this.state.focusNewTask = true;
-      this.renderDashboard();
-    },
-    toggleTask(taskId, completed) {
-      const next = this.state.tasks.map((task) =>
-        task.id === taskId ? { ...task, completed: Boolean(completed) } : task
-      );
-      this.saveTasks(next);
-      this.state.focusNewTask = false;
-      this.renderDashboard();
-    },
-    startTaskEdit(taskId) {
-      this.state.editingTaskId = taskId;
-      this.state.editingFocusRequested = true;
-      this.state.focusNewTask = false;
-      this.renderDashboard();
-    },
-    cancelTaskEdit() {
-      this.state.editingTaskId = null;
-      this.state.editingFocusRequested = false;
-      this.state.focusNewTask = true;
-      this.renderDashboard();
-    },
-    saveTaskEdit(taskId, title) {
-      const trimmed = title.trim();
-      if (!trimmed) {
-        this.cancelTaskEdit();
-        return;
-      }
-      const next = this.state.tasks.map((task) =>
-        task.id === taskId ? { ...task, title: trimmed } : task
-      );
-      this.saveTasks(next);
-      this.state.editingTaskId = null;
-      this.state.editingFocusRequested = false;
-      this.state.focusNewTask = true;
-      this.renderDashboard();
-    },
-    deleteTask(taskId) {
-      const next = this.state.tasks.filter((task) => task.id !== taskId);
-      this.saveTasks(next);
-      if (this.state.editingTaskId === taskId) {
-        this.state.editingTaskId = null;
-        this.state.editingFocusRequested = false;
-      }
-      this.state.focusNewTask = true;
-      this.renderDashboard();
-    },
-    setAllTasks(completed) {
-      const next = this.state.tasks.map((task) => ({ ...task, completed }));
-      this.saveTasks(next);
-      this.state.focusNewTask = false;
-      this.renderDashboard();
-    },
-    clearCompletedTasks() {
-      const next = this.state.tasks.filter((task) => !task.completed);
-      this.saveTasks(next);
-      if (this.state.editingTaskId && !next.some((task) => task.id === this.state.editingTaskId)) {
-        this.state.editingTaskId = null;
-        this.state.editingFocusRequested = false;
-      }
-      this.state.focusNewTask = true;
-      this.renderDashboard();
-    },
-    loadBudgetItems() {
-      try {
-        const raw = localStorage.getItem(this.budgetStorageKey);
-        if (!raw) {
-          return DEFAULT_BUDGET_ITEMS.map((item) => ({ ...item }));
-        }
-        const parsed = JSON.parse(raw);
-        if (!Array.isArray(parsed) || !parsed.length) {
-          return DEFAULT_BUDGET_ITEMS.map((item) => ({ ...item }));
-        }
-        return parsed
-          .filter((item) => item && typeof item.title === "string" && item.title.trim().length)
-          .map((item) => ({
-            id: item.id || this.generateId("budget"),
-            title: item.title.trim(),
-            amount: Math.max(0, Math.round(Number(item.amount) || 0))
-          }));
-      } catch (error) {
-        console.error("Не удалось загрузить бюджет", error);
-        return DEFAULT_BUDGET_ITEMS.map((item) => ({ ...item }));
-      }
-    },
-    saveBudgetItems(items) {
-      try {
-        localStorage.setItem(this.budgetStorageKey, JSON.stringify(items));
-        this.state.budgetItems = items;
-      } catch (error) {
-        console.error("Не удалось сохранить бюджет", error);
-      }
-    },
-    addBudgetItem(title, amount) {
-      const entry = {
-        id: this.generateId("budget"),
-        title: title.trim(),
-        amount: Math.max(0, Math.round(Number(amount) || 0))
-      };
-      const next = [...this.state.budgetItems, entry];
-      this.saveBudgetItems(next);
-      this.renderDashboard();
     },
     loadProfile() {
       try {
