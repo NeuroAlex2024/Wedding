@@ -458,7 +458,7 @@
     },
     finishQuiz() {
       const now = Date.now();
-      this.updateProfile({ updatedAt: now });
+      this.updateProfile({ updatedAt: now, quizCompleted: true });
       this.triggerConfetti();
       setTimeout(() => {
         location.hash = "#/dashboard";
@@ -478,7 +478,8 @@
         year: currentYear,
         month: new Date().getMonth() + 1,
         budgetRange: "",
-        guests: 50,
+        guests: null,
+        quizCompleted: false,
         createdAt: now,
         updatedAt: now,
         checklist: DEFAULT_CHECKLIST_ITEMS.map((item) => ({ ...item })),
@@ -498,6 +499,12 @@
         profile.budgetEntries = DEFAULT_BUDGET_ENTRIES.map((item) => ({ ...item }));
         updated = true;
       }
+      if (typeof profile.quizCompleted !== "boolean") {
+        profile.quizCompleted = Boolean(
+          (profile.groomName && profile.brideName && profile.guests) || profile.quizCompleted
+        );
+        updated = true;
+      }
       if (updated) {
         this.saveProfile({ ...profile });
       }
@@ -507,6 +514,7 @@
       this.ensureDashboardData();
       const profile = this.state.profile;
       const hasProfile = Boolean(profile);
+      const quizCompleted = Boolean(profile && profile.quizCompleted);
       const summaryItems = [];
       if (hasProfile && profile.vibe && profile.vibe.length) {
         summaryItems.push(`Атмосфера: ${profile.vibe.join(", ")}`);
@@ -517,7 +525,7 @@
       if (hasProfile && profile.city) {
         summaryItems.push(`Город: ${profile.city}`);
       }
-      if (hasProfile && profile.guests) {
+      if (hasProfile && quizCompleted && profile.guests) {
         summaryItems.push(`Гостей: ${profile.guests}`);
       }
       if (hasProfile && profile.budgetRange) {
@@ -531,6 +539,9 @@
       const heading = hasProfile
         ? `${profile.groomName || "Жених"} + ${profile.brideName || "Невеста"}, добро пожаловать!`
         : "Планирование свадьбы без стресса";
+      const headingSubtext = hasProfile
+        ? `<p class="dashboard-subtitle">Здесь вы можете собрать все необходимое для свадьбы мечты.</p>`
+        : "";
       const heroImage = `
         <div class="dashboard-hero-image">
           <img src="https://images.unsplash.com/photo-1542379510-1026e928ed4f?q=80&w=3118&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D" alt="Счастливая пара на свадьбе">
@@ -582,7 +593,7 @@
           `;
         })
         .join("");
-      const actionsBlock = hasProfile
+      const actionsBlock = quizCompleted
         ? `<div class="actions dashboard-actions">
             <button type="button" id="edit-quiz">Редактировать ответы теста</button>
           </div>`
@@ -595,13 +606,14 @@
           ${heroImage}
           <header class="dashboard-header">
             <h1>${heading}</h1>
+            ${headingSubtext}
             ${introBlock}
             ${daysBlock}
           </header>
           <div class="dashboard-modules">
             <section class="dashboard-module checklist" data-area="checklist" aria-labelledby="checklist-title">
               <div class="module-header">
-                <h2 id="checklist-title">Контрольный список</h2>
+                <h2 id="checklist-title">Чек лист</h2>
                 <p>Отмечайте готовые задачи и добавляйте новые пункты по ходу подготовки.</p>
               </div>
               <ul class="checklist-items">
