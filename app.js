@@ -1,5 +1,6 @@
 (function () {
   const storageKey = "wedding_profile_v1";
+  const dashboardStorageKey = "wedding_dashboard_v1";
   const allowedRoutes = ["#/quiz", "#/dashboard"];
   const monthNames = [
     "Январь",
@@ -15,6 +16,7 @@
     "Ноябрь",
     "Декабрь"
   ];
+  const budgetPalette = ["#e07a8b", "#7ec4cf", "#f6d365", "#cdb4db", "#9a8c98", "#84dcc6"]; 
 
   const App = {
     storageKey,
@@ -24,12 +26,15 @@
       currentRoute: "#/dashboard",
       currentStep: 0,
       modalOpen: false,
-      lastFocused: null
+      lastFocused: null,
+      dashboardData: null
     },
     init() {
       this.cacheDom();
       this.bindGlobalEvents();
       this.state.profile = this.loadProfile();
+      this.state.dashboardData = this.loadDashboardData();
+      this.ensureDashboardData();
       const defaultRoute = "#/dashboard";
       if (location.hash === "#/welcome") {
         location.replace(defaultRoute);
@@ -65,6 +70,8 @@
     handleRouteChange() {
       const hash = location.hash || "#/dashboard";
       this.state.profile = this.loadProfile();
+      this.state.dashboardData = this.loadDashboardData();
+      this.ensureDashboardData();
       if (hash === "#/welcome") {
         location.replace("#/dashboard");
         return;
@@ -482,8 +489,12 @@
       this.saveProfile(profile);
     },
     renderDashboard() {
+      this.ensureDashboardData();
       const profile = this.state.profile;
       const hasProfile = Boolean(profile);
+      const dashboardData = this.state.dashboardData || { tasks: [], budgetItems: [] };
+      const tasks = Array.isArray(dashboardData.tasks) ? dashboardData.tasks : [];
+      const budgetItems = Array.isArray(dashboardData.budgetItems) ? dashboardData.budgetItems : [];
       const summaryItems = [];
       if (hasProfile && profile.vibe && profile.vibe.length) {
         summaryItems.push(`Атмосфера: ${profile.vibe.join(", ")}`);
@@ -510,60 +521,251 @@
         : "Планирование свадьбы без стресса";
       const heroImage = `
         <div class="dashboard-hero-image">
-          <img src="https://images.unsplash.com/photo-1542379510-1026e928ed4f?q=80&w=3118&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D" alt="Счастливая пара на свадьбе">
+          <img src="https://images.unsplash.com/photo-1542379510-1026e928ed4f?q=80&w=3118&auto=format&fit=crop&ixlib=rb-4.1.0&ix
+id=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D" alt="Счастливая пара на свадьбе">
         </div>
       `;
       const daysBlock = hasProfile ? this.renderCountdown(profile) : "";
-      const cards = MODULE_CARDS.map((card) => `
-        <article class="dashboard-card ${card.size === "lg" ? "lg" : ""}" tabindex="0" data-card="${card.id}" data-title="${card.title}">
-          <h3>${card.title}</h3>
-          <p>Персональные рекомендации появятся скоро.</p>
-        </article>
-      `).join("");
+      const navBlock = `
+        <nav class="dashboard-nav" aria-label="Основные разделы">
+          ${DASHBOARD_NAV_ITEMS.map(
+            (item) => `
+              <button type="button" class="nav-chip" data-title="${item.label}" data-nav="${item.id}">
+                <span>${item.label}</span>
+              </button>
+            `
+          ).join("")}
+        </nav>
+      `;
+      const toolsBlock = `
+        <section class="module-card tools-module">
+          <header class="module-header">
+            <h2>Инструменты</h2>
+            <p class="module-caption">Все ключевые сервисы в одном месте.</p>
+          </header>
+          <div class="tools-grid">
+            ${TOOL_MODULE_ITEMS.map(
+              (item) => `
+                <button type="button" class="tool-card" data-title="${item.label}">
+                  <span class="tool-icon" aria-hidden="true">${item.icon || ""}</span>
+                  <span class="tool-label">${item.label}</span>
+                </button>
+              `
+            ).join("")}
+          </div>
+        </section>
+      `;
+      const completedTasks = tasks.filter((task) => task.done).length;
+      const checklistItems = tasks.length
+        ? tasks
+            .map(
+              (task) => `
+                <label class="checklist-item ${task.done ? "is-done" : ""}" data-task-id="${task.id}">
+                  <input type="checkbox" data-task-id="${task.id}" ${task.done ? "checked" : ""}>
+                  <span>${task.text}</span>
+                </label>
+              `
+            )
+            .join("")
+        : `<p class="module-empty">Добавьте первую задачу, чтобы ничего не забыть.</p>`;
+      const checklistBlock = `
+        <section class="module-card checklist-module">
+          <header class="module-header">
+            <div>
+              <h2>Контрольный список</h2>
+              <p class="module-caption">${completedTasks} из ${tasks.length || 0} задач выполнено</p>
+            </div>
+          </header>
+          <div class="checklist-items" id="checklist-items">
+            ${checklistItems}
+          </div>
+          <form id="checklist-form" class="checklist-form" autocomplete="off">
+            <input id="checklist-input" type="text" placeholder="Добавить задачу" aria-label="Добавить новую задачу" required>
+            <button type="submit">Добавить</button>
+          </form>
+        </section>
+      `;
+      const totalBudget = budgetItems.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+      const budgetBars = budgetItems.length
+        ? budgetItems
+            .map((item, index) => {
+              const amount = Number(item.amount) || 0;
+              const percent = totalBudget ? Math.min(100, (amount / totalBudget) * 100) : 0;
+              const color = budgetPalette[index % budgetPalette.length];
+              return `
+                <article class="budget-item" data-budget-id="${item.id}">
+                  <header class="budget-item-header">
+                    <span class="budget-item-title">${item.title}</span>
+                    <span class="budget-item-amount">${this.formatCurrency(amount)}</span>
+                  </header>
+                  <div class="budget-bar">
+                    <div class="budget-bar-fill" data-percent="${percent.toFixed(2)}" style="--bar-color: ${color};"></div>
+                  </div>
+                </article>
+              `;
+            })
+            .join("")
+        : `<p class="module-empty">Добавьте статьи расходов, чтобы увидеть распределение бюджета.</p>`;
+      const budgetBlock = `
+        <section class="module-card budget-module">
+          <header class="module-header">
+            <div>
+              <h2>Бюджет</h2>
+              <p class="module-caption">Всего запланировано: ${this.formatCurrency(totalBudget)}</p>
+            </div>
+          </header>
+          <div class="budget-visual" id="budget-visual">
+            ${budgetBars}
+          </div>
+          <form id="budget-form" class="budget-form" autocomplete="off">
+            <div class="budget-form-fields">
+              <input id="budget-name" type="text" placeholder="Название статьи" aria-label="Название статьи" required>
+              <input id="budget-amount" type="number" placeholder="Сумма, ₽" aria-label="Сумма" min="0" step="1000" required>
+            </div>
+            <button type="submit">Добавить</button>
+          </form>
+        </section>
+      `;
       const actionsBlock = hasProfile
         ? `<div class="actions" style="margin-top:2rem;">
             <button type="button" id="edit-quiz">Редактировать ответы теста</button>
           </div>`
         : "";
+      const countdownBlock = daysBlock ? `<div class="dashboard-countdown">${daysBlock}</div>` : "";
       this.appEl.innerHTML = `
-        <section class="card">
+        <section class="card dashboard-shell">
+          <header class="dashboard-header">
+            <div class="dashboard-heading">
+              <h1>${heading}</h1>
+              ${introBlock}
+            </div>
+            ${countdownBlock}
+          </header>
+          ${navBlock}
           ${heroImage}
-          <h1>${heading}</h1>
-          ${introBlock}
-          ${daysBlock}
-          <div class="dashboard-grid">${cards}</div>
+          <div class="dashboard-modules">
+            ${checklistBlock}
+            ${toolsBlock}
+            ${budgetBlock}
+          </div>
           ${actionsBlock}
         </section>
       `;
-      const handleCardActivation = (event, card) => {
-        if (!this.state.profile) {
-          if (event) {
-            event.preventDefault();
-          }
-          this.state.currentStep = 0;
-          this.ensureProfile();
-          location.hash = "#/quiz";
-          return;
-        }
-        if (event && event.type === "keydown") {
-          event.preventDefault();
-        }
-        this.openModal(card);
+      this.bindDashboardEvents(hasProfile);
+    },
+    bindDashboardEvents(hasProfile) {
+      const requireProfile = () => {
+        this.state.currentStep = 0;
+        this.ensureProfile();
+        location.hash = "#/quiz";
       };
-      this.appEl.querySelectorAll(".dashboard-card").forEach((card) => {
-        card.addEventListener("click", (event) => handleCardActivation(event, card));
-        card.addEventListener("keydown", (event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            handleCardActivation(event, card);
+      const nav = this.appEl.querySelector(".dashboard-nav");
+      if (nav) {
+        nav.addEventListener("click", (event) => {
+          const target = event.target.closest("[data-title]");
+          if (!target) return;
+          event.preventDefault();
+          if (!hasProfile) {
+            requireProfile();
+            return;
           }
+          this.openModal({ dataset: { title: target.dataset.title } });
+        });
+      }
+      const toolButtons = this.appEl.querySelectorAll(".tool-card");
+      toolButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          if (!hasProfile) {
+            requireProfile();
+            return;
+          }
+          this.openModal({ dataset: { title: button.dataset.title } });
         });
       });
-      if (hasProfile) {
-        document.getElementById("edit-quiz").addEventListener("click", () => {
+      const checklistContainer = this.appEl.querySelector("#checklist-items");
+      if (checklistContainer) {
+        checklistContainer.addEventListener("change", (event) => {
+          const checkbox = event.target.closest("input[type='checkbox']");
+          if (!checkbox) return;
+          const taskId = checkbox.dataset.taskId;
+          if (!taskId) return;
+          const currentTasks = Array.isArray(this.state.dashboardData?.tasks)
+            ? this.state.dashboardData.tasks
+            : [];
+          const nextTasks = currentTasks.map((task) =>
+            task.id === taskId ? { ...task, done: checkbox.checked } : task
+          );
+          this.updateDashboardData({ tasks: nextTasks });
+          this.renderDashboard();
+        });
+      }
+      const checklistForm = this.appEl.querySelector("#checklist-form");
+      if (checklistForm) {
+        checklistForm.addEventListener("submit", (event) => {
+          event.preventDefault();
+          const input = checklistForm.querySelector("#checklist-input");
+          if (!input) return;
+          const value = input.value.trim();
+          if (!value) {
+            input.focus();
+            return;
+          }
+          const currentTasks = Array.isArray(this.state.dashboardData?.tasks)
+            ? this.state.dashboardData.tasks
+            : [];
+          const nextTasks = [
+            ...currentTasks,
+            { id: this.createId("task"), text: value, done: false }
+          ];
+          this.updateDashboardData({ tasks: nextTasks });
+          this.renderDashboard();
+        });
+      }
+      const budgetForm = this.appEl.querySelector("#budget-form");
+      if (budgetForm) {
+        budgetForm.addEventListener("submit", (event) => {
+          event.preventDefault();
+          const nameInput = budgetForm.querySelector("#budget-name");
+          const amountInput = budgetForm.querySelector("#budget-amount");
+          if (!nameInput || !amountInput) return;
+          const title = nameInput.value.trim();
+          const amount = Number(amountInput.value);
+          if (!title) {
+            nameInput.focus();
+            return;
+          }
+          if (!Number.isFinite(amount) || amount <= 0) {
+            amountInput.focus();
+            return;
+          }
+          const currentItems = Array.isArray(this.state.dashboardData?.budgetItems)
+            ? this.state.dashboardData.budgetItems
+            : [];
+          const nextItems = [
+            ...currentItems,
+            { id: this.createId("budget"), title, amount }
+          ];
+          this.updateDashboardData({ budgetItems: nextItems });
+          this.renderDashboard();
+        });
+      }
+      const editQuiz = this.appEl.querySelector("#edit-quiz");
+      if (hasProfile && editQuiz) {
+        editQuiz.addEventListener("click", () => {
           this.state.currentStep = 0;
           location.hash = "#/quiz";
         });
       }
+      this.animateBudgetBars();
+    },
+    animateBudgetBars() {
+      const bars = this.appEl.querySelectorAll(".budget-bar-fill");
+      requestAnimationFrame(() => {
+        bars.forEach((bar) => {
+          const target = Number(bar.dataset.percent) || 0;
+          bar.style.width = `${target}%`;
+        });
+      });
     },
     renderCountdown(profile) {
       if (!profile.year || !profile.month) {
@@ -656,6 +858,103 @@
         }
       };
       requestAnimationFrame(animate);
+    },
+    loadDashboardData() {
+      try {
+        const raw = localStorage.getItem(dashboardStorageKey);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== "object") {
+          return null;
+        }
+        return parsed;
+      } catch (error) {
+        console.error("Не удалось загрузить данные дашборда", error);
+        return null;
+      }
+    },
+    saveDashboardData(data) {
+      try {
+        localStorage.setItem(dashboardStorageKey, JSON.stringify(data));
+        this.state.dashboardData = data;
+      } catch (error) {
+        console.error("Не удалось сохранить данные дашборда", error);
+      }
+    },
+    updateDashboardData(patch) {
+      const current = this.state.dashboardData || { tasks: [], budgetItems: [] };
+      const next = {
+        ...current,
+        ...patch
+      };
+      this.saveDashboardData(next);
+    },
+    ensureDashboardData() {
+      let data = this.state.dashboardData;
+      let changed = false;
+      if (!data || typeof data !== "object") {
+        data = {
+          tasks: DEFAULT_CHECKLIST_TASKS.map((task) => ({ ...task })),
+          budgetItems: DEFAULT_BUDGET_ITEMS.map((item) => ({ ...item }))
+        };
+        changed = true;
+      } else {
+        const currentTasks = Array.isArray(data.tasks) ? data.tasks : [];
+        const normalizedTasks = (currentTasks.length
+          ? currentTasks
+          : DEFAULT_CHECKLIST_TASKS
+        ).map((task, index) => {
+          const normalized = {
+            id: task.id || this.createId(`task-${index}`),
+            text: task.text || task.title || `Задача ${index + 1}`,
+            done: Boolean(task.done)
+          };
+          if (
+            normalized.id !== task.id ||
+            normalized.text !== task.text ||
+            normalized.done !== Boolean(task.done)
+          ) {
+            changed = true;
+          }
+          return normalized;
+        });
+        const currentBudget = Array.isArray(data.budgetItems) ? data.budgetItems : [];
+        const normalizedBudget = (currentBudget.length
+          ? currentBudget
+          : DEFAULT_BUDGET_ITEMS
+        ).map((item, index) => {
+          const amount = Number(item.amount) || 0;
+          const normalized = {
+            id: item.id || this.createId(`budget-${index}`),
+            title: item.title || item.name || `Статья ${index + 1}`,
+            amount
+          };
+          if (
+            normalized.id !== item.id ||
+            normalized.title !== (item.title || item.name) ||
+            amount !== Number(item.amount || 0)
+          ) {
+            changed = true;
+          }
+          return normalized;
+        });
+        data = {
+          tasks: normalizedTasks,
+          budgetItems: normalizedBudget
+        };
+      }
+      if (changed) {
+        this.saveDashboardData(data);
+      } else {
+        this.state.dashboardData = data;
+      }
+    },
+    formatCurrency(value) {
+      const amount = Number(value) || 0;
+      return `${new Intl.NumberFormat("ru-RU").format(Math.max(0, Math.round(amount)))} ₽`;
+    },
+    createId(prefix = "id") {
+      return `${prefix}-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36)}`;
     },
     loadProfile() {
       try {

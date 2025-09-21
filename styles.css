@@ -24,7 +24,7 @@ body {
 main#app {
   min-height: 100vh;
   padding: 3rem 1.5rem 4rem;
-  max-width: 960px;
+  max-width: 1200px;
   margin: 0 auto;
 }
 
@@ -280,12 +280,6 @@ button.secondary:hover {
   color: var(--accent-dark);
 }
 
-.dashboard-grid {
-  display: grid;
-  gap: 1.5rem;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-}
-
 .dashboard-hero-image {
   width: 100%;
   border-radius: 18px;
@@ -301,32 +295,6 @@ button.secondary:hover {
   object-fit: cover;
 }
 
-.dashboard-card {
-  background: var(--card);
-  border-radius: 18px;
-  padding: 1.5rem;
-  box-shadow: 0 8px 20px rgba(47, 42, 59, 0.08);
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  transition: transform 0.2s, box-shadow 0.2s;
-  cursor: pointer;
-}
-
-.dashboard-card:hover,
-.dashboard-card:focus {
-  transform: translateY(-4px);
-  box-shadow: 0 14px 30px rgba(224, 122, 139, 0.2);
-}
-
-.dashboard-card.lg {
-  grid-column: span 2;
-}
-
-.dashboard-card h3 {
-  margin: 0;
-}
-
 .summary-line {
   display: flex;
   flex-wrap: wrap;
@@ -340,6 +308,238 @@ button.secondary:hover {
   border-radius: 999px;
   padding: 0.25rem 0.75rem;
   font-size: 0.9rem;
+}
+
+.dashboard-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.dashboard-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 2rem;
+}
+
+.dashboard-heading h1 {
+  margin-bottom: 0.75rem;
+}
+
+.dashboard-countdown .banner {
+  margin: 0;
+}
+
+.dashboard-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  background: var(--card);
+  padding: 0.75rem 1rem;
+  border-radius: 999px;
+  box-shadow: 0 12px 30px rgba(47, 42, 59, 0.08);
+}
+
+.nav-chip {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.nav-chip:hover,
+.nav-chip:focus-visible {
+  background: rgba(224, 122, 139, 0.12);
+  color: var(--accent-dark);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.dashboard-modules {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(320px, 1fr) minmax(260px, 320px);
+  gap: 2rem;
+  align-items: start;
+}
+
+.module-card {
+  background: var(--card);
+  border-radius: 20px;
+  padding: 1.75rem;
+  box-shadow: 0 16px 32px rgba(47, 42, 59, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.module-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.module-header h2 {
+  margin: 0;
+}
+
+.module-caption {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.module-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.tools-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem;
+}
+
+.tool-card {
+  border: none;
+  border-radius: 18px;
+  padding: 1.5rem 1.25rem;
+  background: rgba(224, 122, 139, 0.08);
+  color: var(--txt);
+  display: grid;
+  gap: 0.75rem;
+  justify-items: start;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  cursor: pointer;
+}
+
+.tool-card:hover,
+.tool-card:focus-visible {
+  background: rgba(224, 122, 139, 0.16);
+  transform: translateY(-3px);
+  box-shadow: 0 12px 24px rgba(224, 122, 139, 0.18);
+  outline: none;
+}
+
+.tool-icon {
+  font-size: 1.8rem;
+}
+
+.tool-label {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.checklist-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.checklist-item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.9rem 1rem;
+  border-radius: 16px;
+  background: rgba(110, 103, 129, 0.08);
+  transition: background 0.2s ease;
+}
+
+.checklist-item input[type="checkbox"] {
+  width: 1.2rem;
+  height: 1.2rem;
+  accent-color: var(--accent);
+}
+
+.checklist-item span {
+  font-weight: 600;
+  color: var(--txt);
+}
+
+.checklist-item.is-done {
+  background: rgba(76, 175, 176, 0.15);
+}
+
+.checklist-item.is-done span {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.checklist-form {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.checklist-form input {
+  flex: 1;
+}
+
+.budget-visual {
+  display: grid;
+  gap: 1rem;
+}
+
+.budget-item {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.budget-item-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-weight: 600;
+  color: var(--txt);
+}
+
+.budget-item-title {
+  flex: 1;
+}
+
+.budget-item-amount {
+  white-space: nowrap;
+  color: var(--accent-dark);
+}
+
+.budget-bar {
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(224, 122, 139, 0.1);
+  overflow: hidden;
+}
+
+.budget-bar-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--bar-color, var(--accent)), rgba(132, 220, 198, 0.9));
+  transition: width 0.6s ease;
+}
+
+.budget-form {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.budget-form-fields {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(180px, 2fr) minmax(140px, 1fr);
+}
+
+.budget-form input {
+  width: 100%;
 }
 
 #modal-overlay {
@@ -411,14 +611,6 @@ button.secondary:hover {
     width: 100%;
   }
 
-  .dashboard-grid {
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  }
-
-  .dashboard-card.lg {
-    grid-column: span 1;
-  }
-
   .actions {
     flex-direction: column;
     align-items: stretch;
@@ -426,5 +618,31 @@ button.secondary:hover {
 
   button {
     width: 100%;
+  }
+}
+
+@media (max-width: 1100px) {
+  .dashboard-modules {
+    grid-template-columns: minmax(260px, 1fr) minmax(320px, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .dashboard-nav {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .nav-chip {
+    width: 100%;
+    text-align: left;
+  }
+
+  .dashboard-modules {
+    grid-template-columns: 1fr;
+  }
+
+  .budget-form-fields {
+    grid-template-columns: 1fr;
   }
 }
