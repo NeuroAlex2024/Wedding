@@ -594,9 +594,11 @@
       this.appEl.innerHTML = `
         <section class="card dashboard-card-shell">
           <div class="dashboard-top">
-            <div class="dashboard-links" role="navigation" aria-label="Основные разделы">
-              ${quickLinks}
-            </div>
+            <nav class="dashboard-links" aria-label="Основные разделы">
+              <div class="dashboard-links__inner">
+                ${quickLinks}
+              </div>
+            </nav>
             ${heroImage}
           </div>
           <div class="dashboard-header">
