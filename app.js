@@ -588,12 +588,15 @@
           ${item.title}
         </button>
       `).join("");
-      const toolsCards = DASHBOARD_TOOL_ITEMS.map((item) => `
-        <button type="button" class="tool-card" data-modal-target="${item.id}" data-title="${item.title}">
+      const toolsCards = DASHBOARD_TOOL_ITEMS.map((item) => {
+        const extraAttributes = item.id === "tools-test" ? ' data-tool-type="quiz"' : "";
+        return `
+        <button type="button" class="tool-card" data-modal-target="${item.id}" data-title="${item.title}"${extraAttributes}>
           <span class="tool-card__title">${item.title}</span>
           <span class="tool-card__description">${item.description}</span>
         </button>
-      `).join("");
+      `;
+      }).join("");
       const checklistItems = (profile && Array.isArray(profile.checklist) ? profile.checklist : DEFAULT_CHECKLIST_ITEMS)
         .map((item, index) => {
           const itemId = `check-${item.id || index}`;
@@ -690,11 +693,6 @@
             })
             .join("")
         : '<p class="budget-empty">Добавьте статьи, чтобы увидеть распределение бюджета.</p>';
-      const actionsBlock = quizCompleted
-        ? `<div class="actions dashboard-actions">
-            <button type="button" id="edit-quiz">Редактировать ответы теста</button>
-          </div>`
-        : "";
       this.appEl.innerHTML = `
         <section class="card dashboard">
           <nav class="dashboard-nav" aria-label="Основные разделы">
@@ -754,7 +752,6 @@
               </form>
             </section>
           </div>
-          ${actionsBlock}
         </section>
       `;
       this.bindDashboardEvents(previousTotal, totalBudget);
@@ -868,16 +865,19 @@
           titleInput.select();
         }
       }
-      const editButton = document.getElementById("edit-quiz");
-      if (editButton) {
-        editButton.addEventListener("click", () => {
-          this.state.currentStep = 0;
-          location.hash = "#/quiz";
-        });
-      }
       this.animateBudget(previousTotal, totalBudget);
     },
     handleModuleActivation(event, element) {
+      const toolType = element?.dataset?.toolType;
+      if (toolType === "quiz") {
+        if (event) {
+          event.preventDefault();
+        }
+        this.state.currentStep = 0;
+        this.ensureProfile();
+        location.hash = "#/quiz";
+        return;
+      }
       if (!this.state.profile) {
         if (event) {
           event.preventDefault();
