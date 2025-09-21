@@ -42,15 +42,31 @@ const BUDGET_RANGES = [
   "От 2 млн ₽"
 ];
 
-const MODULE_CARDS = [
-  { id: "venues", title: "Места проведения", size: "lg" },
-  { id: "photographers", title: "Фотографы" },
-  { id: "videographers", title: "Видеографы" },
-  { id: "catering", title: "Кейтеринг" },
-  { id: "florists", title: "Флористы" },
-  { id: "cars", title: "Аренда машин" },
-  { id: "outfits", title: "Платья и костюмы" },
-  { id: "hosts", title: "Ведущие" },
-  { id: "djs", title: "Диджеи" },
-  { id: "jewelry", title: "Ювелирные" }
+const DASHBOARD_NAV_ITEMS = [
+  { id: "venues", title: "Место проведения" },
+  { id: "vendors", title: "Подрядчики" },
+  { id: "tools", title: "Инструменты" },
+  { id: "checklist", title: "Контрольный список" },
+  { id: "budget", title: "Бюджет" },
+  { id: "blog", title: "Блог" }
+];
+
+const DASHBOARD_TOOL_ITEMS = [
+  { id: "tools-budget", title: "Бюджет", description: "Следите за расходами" },
+  { id: "tools-guests", title: "Список гостей", description: "Отправляйте приглашения" },
+  { id: "tools-website", title: "Сайт-приглашение", description: "Поделитесь деталями" },
+  { id: "tools-booked", title: "Забронировано", description: "Контролируйте статусы" },
+  { id: "tools-favorites", title: "Избранное", description: "Сохраняйте лучшие идеи" }
+];
+
+const DEFAULT_CHECKLIST_ITEMS = [
+  { id: "task-1", title: "Выбрать дату и площадку", done: false },
+  { id: "task-2", title: "Согласовать бюджет с партнёром", done: false },
+  { id: "task-3", title: "Составить список гостей", done: false }
+];
+
+const DEFAULT_BUDGET_ENTRIES = [
+  { id: "budget-venue", title: "Площадка", amount: 250000 },
+  { id: "budget-decor", title: "Декор и флористика", amount: 90000 },
+  { id: "budget-photo", title: "Фото и видео", amount: 120000 }
 ];
