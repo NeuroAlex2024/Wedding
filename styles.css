@@ -62,21 +62,33 @@ p {
   font-size: clamp(2rem, 2.6vw + 1.2rem, 3rem);
 }
 
-.welcome-subtitle {
+.welcome-content p {
   font-size: 1.05rem;
-  color: var(--muted);
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.25rem;
 }
 
-.welcome-content button {
-  width: fit-content;
-  min-width: 200px;
+.welcome-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+  color: var(--accent-dark);
+  text-decoration: none;
 }
 
-.welcome-note {
-  margin-top: 0.75rem;
-  font-size: 0.9rem;
-  color: var(--muted);
+.welcome-link::after {
+  content: "";
+  width: 0.55rem;
+  height: 0.55rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  margin-top: 1px;
+}
+
+.welcome-link:hover,
+.welcome-link:focus {
+  color: var(--accent);
 }
 
 .welcome-hero {
@@ -101,41 +113,18 @@ p {
   min-height: 240px;
 }
 
-.welcome-steps h2 {
-  font-size: 1.5rem;
-}
-
-.steps-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.welcome-modules {
   display: grid;
   gap: 1.5rem;
 }
 
-.steps-list li {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 1rem;
-  align-items: start;
-}
-
-.steps-list h3 {
-  margin: 0 0 0.5rem;
-}
-
-.steps-list p {
+.welcome-modules__subtitle {
   margin: 0;
+  font-size: 1rem;
 }
 
-.step-icon {
-  width: 3rem;
-  height: 3rem;
-  border-radius: 50%;
-  background: rgba(224, 122, 139, 0.14);
-  display: grid;
-  place-items: center;
-  font-size: 1.5rem;
+.welcome-grid .dashboard-card {
+  cursor: pointer;
 }
 
 form {

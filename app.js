@@ -99,52 +99,40 @@
       }
     },
     renderWelcome() {
+      const cards = MODULE_CARDS.map((card) => `
+        <article class="dashboard-card ${card.size === "lg" ? "lg" : ""}" tabindex="0" data-card="${card.id}">
+          <h3>${card.title}</h3>
+          <p>Покажем лучших специалистов, как только всё будет готово.</p>
+        </article>
+      `).join("");
       this.appEl.innerHTML = `
         <section class="card welcome">
           <div class="welcome-layout">
             <div class="welcome-content">
-              <h1>Планирование свадьбы без стресса</h1>
-              <p class="welcome-subtitle">Подберём подрядчиков, поможем с бюджетом и сроками — всё в одном месте. Пройдите короткий тест, и мы настроим рекомендации под вашу пару.</p>
-              <button type="button" id="start-quiz">Начать тест</button>
-              <p class="welcome-note">Это бесплатно. Прогресс сохраняется.</p>
+              <h1>Тёплое начало для вашей свадьбы</h1>
+              <p>Мы соберём проверенных подрядчиков и идеи, которые отражают настроение вашей пары.</p>
+              <p>Расскажите о мечтах и планах — и мы превратим их в персональный план праздника.</p>
+              <a class="welcome-link" href="#/quiz">Пройти короткий тест →</a>
             </div>
-            <div class="welcome-hero" role="presentation">
-              <img src="https://images.unsplash.com/photo-1591604466107-ec97de577aff?q=80&w=2071&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D" alt="Счастливая пара на фоне горного озера" loading="lazy" decoding="async">
-            </div>
-          </div>
-          <div class="welcome-steps">
-            <h2>Как это работает</h2>
-            <ul class="steps-list">
-              <li>
-                <span class="step-icon" aria-hidden="true">📝</span>
-                <div>
-                  <h3>Ответьте на 11 вопросов</h3>
-                  <p>Расскажите немного о вашей паре и ожиданиях от праздника.</p>
-                </div>
-              </li>
-              <li>
-                <span class="step-icon" aria-hidden="true">📊</span>
-                <div>
-                  <h3>Получите персональный дашборд</h3>
-                  <p>Сводка ключевых параметров и дальнейшие шаги всегда под рукой.</p>
-                </div>
-              </li>
-              <li>
-                <span class="step-icon" aria-hidden="true">💞</span>
-                <div>
-                  <h3>Добавьте подрядчиков в избранное</h3>
-                  <p>Сохраняйте понравившихся специалистов и возвращайтесь к ним в любое время.</p>
-                </div>
-              </li>
-            </ul>
+            <figure class="welcome-hero" role="presentation">
+              <img src="https://images.unsplash.com/photo-1478059425650-ca13d6d422f4?q=80&w=1989&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D" alt="Влюблённая пара, улыбающаяся и обнимающаяся на закате" loading="lazy" decoding="async">
+            </figure>
           </div>
         </section>
+        <section class="card welcome-modules">
+          <h2>Главные разделы платформы</h2>
+          <p class="welcome-modules__subtitle">Мы готовим подборки специалистов под ваш стиль, город и бюджет. Всё появится в этих разделах.</p>
+          <div class="dashboard-grid welcome-grid">${cards}</div>
+        </section>
       `;
-      const startButton = document.getElementById("start-quiz");
-      startButton.addEventListener("click", () => {
-        this.ensureProfile();
-        this.state.currentStep = 0;
-        location.hash = "#/quiz";
+      this.appEl.querySelectorAll(".dashboard-card").forEach((card) => {
+        card.addEventListener("click", () => this.openModal(card));
+        card.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            this.openModal(card);
+          }
+        });
       });
     },
     renderQuiz() {
