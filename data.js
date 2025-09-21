@@ -52,6 +52,7 @@ const DASHBOARD_NAV_ITEMS = [
 ];
 
 const DASHBOARD_TOOL_ITEMS = [
+  { id: "tools-test", title: "Тест", description: "Спланируйте идеальную свадьбу" },
   { id: "tools-budget", title: "Бюджет", description: "Следите за расходами" },
   { id: "tools-guests", title: "Список гостей", description: "Отправляйте приглашения" },
   { id: "tools-website", title: "Сайт-приглашение", description: "Поделитесь деталями" },
