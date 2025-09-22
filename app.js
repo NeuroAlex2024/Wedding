@@ -30,8 +30,12 @@
       lastFocused: null,
       lastBudgetTotal: 0,
       budgetEditingId: null,
-      budgetEditingDraft: null
+      budgetEditingDraft: null,
+      checklistExpanded: false,
+      checklistEditingId: null,
+      checklistEditingDraft: null
     },
+    checklistOverlay: null,
     init() {
       this.cacheDom();
       this.bindGlobalEvents();
@@ -57,8 +61,12 @@
     bindGlobalEvents() {
       window.addEventListener("hashchange", () => this.handleRouteChange());
       document.addEventListener("keydown", (event) => {
-        if (event.key === "Escape" && this.state.modalOpen) {
-          this.closeModal();
+        if (event.key === "Escape") {
+          if (this.state.modalOpen) {
+            this.closeModal();
+          } else if (this.state.checklistExpanded) {
+            this.collapseChecklist();
+          }
         }
       });
       this.modalOverlay.addEventListener("click", (event) => {
@@ -87,6 +95,14 @@
         return;
       }
       this.state.currentRoute = hash;
+      if (hash !== "#/dashboard" && this.state.checklistExpanded) {
+        this.state.checklistExpanded = false;
+        this.resetChecklistEditing(false);
+        if (this.checklistOverlay) {
+          this.checklistOverlay.classList.remove("is-active");
+        }
+        document.body.classList.remove("checklist-expanded");
+      }
       if (hash !== "#/quiz") {
         this.state.currentStep = 0;
       }
@@ -505,6 +521,27 @@
       if (!Array.isArray(profile.checklist) || profile.checklist.length === 0) {
         profile.checklist = DEFAULT_CHECKLIST_ITEMS.map((item) => ({ ...item }));
         updated = true;
+      } else if (Array.isArray(profile.checklist)) {
+        const sanitizedChecklist = profile.checklist
+          .filter((item) => item && typeof item === "object")
+          .map((item, index) => {
+            const id = typeof item.id === "string" && item.id.trim().length ? item.id : `task-${timestamp}-${index}`;
+            const title = typeof item.title === "string" ? item.title.trim() : String(item.title || "");
+            const done = Boolean(item.done);
+            if (item.id !== id || item.title !== title || item.done !== done) {
+              updated = true;
+            }
+            return {
+              ...item,
+              id,
+              title,
+              done
+            };
+          });
+        if (sanitizedChecklist.length !== profile.checklist.length) {
+          updated = true;
+        }
+        profile.checklist = sanitizedChecklist;
       }
       if (!Array.isArray(profile.budgetEntries) || profile.budgetEntries.length === 0) {
         profile.budgetEntries = DEFAULT_BUDGET_ENTRIES.map((item) => ({ ...item }));
@@ -599,12 +636,48 @@
       }).join("");
       const checklistItems = (profile && Array.isArray(profile.checklist) ? profile.checklist : DEFAULT_CHECKLIST_ITEMS)
         .map((item, index) => {
-          const itemId = `check-${item.id || index}`;
+          const taskId = typeof item.id === "string" && item.id ? item.id : `task-${index}`;
+          const itemId = `check-${taskId}`;
           const checkedAttr = item.done ? "checked" : "";
+          const isEditing = this.state.checklistEditingId === taskId;
+          if (isEditing) {
+            const draftValue =
+              typeof this.state.checklistEditingDraft === "string"
+                ? this.state.checklistEditingDraft
+                : item.title || "";
+            return `
+              <li class="checklist-item checklist-item--editing" data-task-id="${this.escapeHtml(taskId)}">
+                <form class="checklist-item__edit" data-task-id="${this.escapeHtml(taskId)}">
+                  <label for="checklist-edit-${this.escapeHtml(taskId)}" class="sr-only">Название задачи</label>
+                  <input id="checklist-edit-${this.escapeHtml(taskId)}" type="text" name="title" value="${this.escapeHtml(
+              draftValue
+            )}" required>
+                  <div class="checklist-item__edit-actions">
+                    <button type="submit">Сохранить</button>
+                    <button type="button" class="secondary" data-action="cancel-checklist-edit">Отменить</button>
+                  </div>
+                </form>
+              </li>
+            `;
+          }
           return `
-            <li class="checklist-item">
-              <input type="checkbox" id="${itemId}" data-task-id="${item.id}" ${checkedAttr}>
-              <label for="${itemId}">${item.title}</label>
+            <li class="checklist-item" data-task-id="${this.escapeHtml(taskId)}">
+              <div class="checklist-item__main">
+                <input type="checkbox" id="${this.escapeHtml(itemId)}" data-task-id="${this.escapeHtml(taskId)}" ${checkedAttr}>
+                <label for="${this.escapeHtml(itemId)}">${this.escapeHtml(item.title || "")}</label>
+              </div>
+              <div class="checklist-item__actions" role="group" aria-label="Действия со строкой чек-листа">
+                <button type="button" class="checklist-item__action" data-action="edit-checklist" data-task-id="${this.escapeHtml(
+                  taskId
+                )}" aria-label="Редактировать задачу">
+                  <span aria-hidden="true">✏️</span>
+                </button>
+                <button type="button" class="checklist-item__action checklist-item__action--danger" data-action="delete-checklist" data-task-id="${this.escapeHtml(
+                  taskId
+                )}" aria-label="Удалить задачу">
+                  <span aria-hidden="true">🗑️</span>
+                </button>
+              </div>
             </li>
           `;
         })
@@ -709,6 +782,11 @@
             <section class="dashboard-module checklist" data-area="checklist" aria-labelledby="checklist-title">
               <div class="module-header">
                 <h2 id="checklist-title">Чек лист</h2>
+                <button type="button" class="module-icon-button checklist-expand-trigger" data-action="expand-checklist" aria-label="${
+                  this.state.checklistExpanded ? "Свернуть чек-лист" : "Развернуть чек-лист"
+                }">
+                  <span aria-hidden="true">${this.state.checklistExpanded ? "✕" : "⤢"}</span>
+                </button>
               </div>
               <ul class="checklist-items">
                 ${checklistItems}
@@ -754,7 +832,72 @@
           </div>
         </section>
       `;
+      this.applyChecklistExpansionState();
       this.bindDashboardEvents(previousTotal, totalBudget);
+    },
+    ensureChecklistOverlay() {
+      if (this.checklistOverlay && document.body.contains(this.checklistOverlay)) {
+        return;
+      }
+      const overlay = document.createElement("div");
+      overlay.id = "checklist-overlay";
+      overlay.className = "checklist-overlay";
+      overlay.setAttribute("aria-hidden", "true");
+      overlay.addEventListener("click", () => {
+        this.collapseChecklist();
+      });
+      document.body.appendChild(overlay);
+      this.checklistOverlay = overlay;
+    },
+    applyChecklistExpansionState() {
+      const checklistModule = this.appEl.querySelector(".dashboard-module.checklist");
+      if (!checklistModule) {
+        if (this.checklistOverlay) {
+          this.checklistOverlay.classList.remove("is-active");
+        }
+        document.body.classList.remove("checklist-expanded");
+        return;
+      }
+      if (this.state.checklistExpanded) {
+        this.ensureChecklistOverlay();
+        checklistModule.classList.add("dashboard-module--expanded");
+        checklistModule.setAttribute("role", "dialog");
+        checklistModule.setAttribute("aria-modal", "true");
+        checklistModule.setAttribute("tabindex", "-1");
+        document.body.classList.add("checklist-expanded");
+        if (this.checklistOverlay) {
+          this.checklistOverlay.classList.add("is-active");
+        }
+        requestAnimationFrame(() => {
+          if (this.state.checklistExpanded) {
+            try {
+              checklistModule.focus({ preventScroll: true });
+            } catch (error) {
+              checklistModule.focus();
+            }
+          }
+        });
+      } else {
+        checklistModule.classList.remove("dashboard-module--expanded");
+        checklistModule.removeAttribute("role");
+        checklistModule.removeAttribute("aria-modal");
+        checklistModule.removeAttribute("tabindex");
+        document.body.classList.remove("checklist-expanded");
+        if (this.checklistOverlay) {
+          this.checklistOverlay.classList.remove("is-active");
+        }
+      }
+    },
+    expandChecklist() {
+      if (this.state.checklistExpanded) return;
+      this.state.checklistExpanded = true;
+      this.renderDashboard();
+    },
+    collapseChecklist() {
+      if (!this.state.checklistExpanded) return;
+      this.state.checklistExpanded = false;
+      this.resetChecklistEditing(false);
+      this.renderDashboard();
     },
     bindDashboardEvents(previousTotal, totalBudget) {
       this.appEl.querySelectorAll("[data-modal-target]").forEach((element) => {
@@ -771,6 +914,72 @@
           const taskId = target.dataset.taskId;
           if (!taskId) return;
           this.toggleChecklistItem(taskId, target.checked);
+        });
+      });
+      const checklistModule = this.appEl.querySelector(".dashboard-module.checklist");
+      if (checklistModule) {
+        checklistModule.addEventListener("click", (event) => {
+          if (this.state.checklistExpanded) {
+            return;
+          }
+          const interactiveSelector = "input, button, label, textarea, select, a, form";
+          if (event.target.closest(interactiveSelector)) {
+            return;
+          }
+          this.expandChecklist();
+        });
+      }
+      this.appEl.querySelectorAll("[data-action='expand-checklist']").forEach((button) => {
+        button.addEventListener("click", (event) => {
+          event.stopPropagation();
+          if (this.state.checklistExpanded) {
+            this.collapseChecklist();
+          } else {
+            this.expandChecklist();
+          }
+        });
+      });
+      this.appEl.querySelectorAll("[data-action='edit-checklist']").forEach((button) => {
+        button.addEventListener("click", (event) => {
+          event.stopPropagation();
+          const taskId = button.dataset.taskId;
+          if (!taskId) return;
+          this.startChecklistEdit(taskId);
+        });
+      });
+      this.appEl.querySelectorAll("[data-action='delete-checklist']").forEach((button) => {
+        button.addEventListener("click", (event) => {
+          event.stopPropagation();
+          const taskId = button.dataset.taskId;
+          if (!taskId) return;
+          this.deleteChecklistItem(taskId);
+        });
+      });
+      this.appEl.querySelectorAll(".checklist-item__edit").forEach((form) => {
+        form.addEventListener("submit", (event) => {
+          event.preventDefault();
+          const taskId = form.dataset.taskId;
+          if (!taskId) return;
+          const input = form.querySelector("input[name='title']");
+          if (!input) return;
+          const value = input.value.trim();
+          if (!value) {
+            input.focus();
+            return;
+          }
+          this.updateChecklistItem(taskId, value);
+        });
+        const input = form.querySelector("input[name='title']");
+        if (input) {
+          input.addEventListener("input", () => {
+            this.state.checklistEditingDraft = input.value;
+          });
+        }
+      });
+      this.appEl.querySelectorAll("[data-action='cancel-checklist-edit']").forEach((button) => {
+        button.addEventListener("click", (event) => {
+          event.stopPropagation();
+          this.cancelChecklistEdit();
         });
       });
       const checklistForm = document.getElementById("checklist-form");
@@ -865,6 +1074,22 @@
           titleInput.select();
         }
       }
+      if (this.state.checklistEditingId) {
+        const selectorId = this.escapeSelector(this.state.checklistEditingId);
+        const checklistEditForm = this.appEl.querySelector(
+          `.checklist-item__edit[data-task-id="${selectorId}"]`
+        );
+        const checklistInput = checklistEditForm?.querySelector("input[name='title']");
+        if (checklistInput) {
+          checklistInput.focus();
+          const length = checklistInput.value.length;
+          try {
+            checklistInput.setSelectionRange(length, length);
+          } catch (error) {
+            checklistInput.select();
+          }
+        }
+      }
       this.animateBudget(previousTotal, totalBudget);
     },
     handleModuleActivation(event, element) {
@@ -894,6 +1119,7 @@
     },
     toggleChecklistItem(taskId, done) {
       const current = Array.isArray(this.state.profile?.checklist) ? this.state.profile.checklist : [];
+      const hadEditing = this.resetChecklistEditing(false);
       const next = current.map((item) =>
         item.id === taskId
           ? {
@@ -903,6 +1129,9 @@
           : item
       );
       this.updateProfile({ checklist: next });
+      if (hadEditing) {
+        this.renderDashboard();
+      }
     },
     addChecklistItem(title) {
       const current = Array.isArray(this.state.profile?.checklist) ? this.state.profile.checklist : [];
@@ -914,8 +1143,65 @@
           done: false
         }
       ];
+      this.resetChecklistEditing(false);
       this.updateProfile({ checklist: next });
       this.renderDashboard();
+    },
+    startChecklistEdit(taskId) {
+      if (!taskId) return;
+      const items = Array.isArray(this.state.profile?.checklist) ? this.state.profile.checklist : [];
+      const targetItem = items.find((item) => item && item.id === taskId);
+      if (!targetItem) return;
+      this.state.checklistEditingId = taskId;
+      this.state.checklistEditingDraft = targetItem.title || "";
+      if (this.state.checklistExpanded) {
+        this.renderDashboard();
+      } else {
+        this.expandChecklist();
+      }
+    },
+    updateChecklistItem(taskId, title) {
+      if (!taskId) return;
+      const items = Array.isArray(this.state.profile?.checklist) ? this.state.profile.checklist : [];
+      const trimmedTitle = title.trim();
+      if (!trimmedTitle) return;
+      const next = items.map((item) =>
+        item.id === taskId
+          ? {
+              ...item,
+              title: trimmedTitle
+            }
+          : item
+      );
+      this.resetChecklistEditing(false);
+      this.updateProfile({ checklist: next });
+      this.renderDashboard();
+    },
+    deleteChecklistItem(taskId) {
+      if (!taskId) return;
+      const items = Array.isArray(this.state.profile?.checklist) ? this.state.profile.checklist : [];
+      const next = items.filter((item) => item.id !== taskId);
+      if (next.length === items.length) {
+        return;
+      }
+      this.resetChecklistEditing(false);
+      this.updateProfile({ checklist: next });
+      this.renderDashboard();
+    },
+    cancelChecklistEdit() {
+      if (!this.state.checklistEditingId) {
+        return;
+      }
+      this.resetChecklistEditing();
+    },
+    resetChecklistEditing(shouldRender = true) {
+      const hadEditing = Boolean(this.state.checklistEditingId);
+      this.state.checklistEditingId = null;
+      this.state.checklistEditingDraft = null;
+      if (shouldRender && hadEditing) {
+        this.renderDashboard();
+      }
+      return hadEditing;
     },
     addBudgetEntry(title, amount) {
       const current = Array.isArray(this.state.profile?.budgetEntries) ? this.state.profile.budgetEntries : [];
@@ -1095,6 +1381,12 @@
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#39;");
+    },
+    escapeSelector(value) {
+      if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
+        return CSS.escape(String(value ?? ""));
+      }
+      return String(value ?? "").replace(/([^a-zA-Z0-9_-])/g, "\\$1");
     },
     renderCountdown(profile) {
       if (!profile.year || !profile.month) {
