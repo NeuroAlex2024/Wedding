@@ -30,7 +30,14 @@
       lastFocused: null,
       lastBudgetTotal: 0,
       budgetEditingId: null,
-      budgetEditingDraft: null
+      budgetEditingDraft: null,
+      isChecklistExpanded: false,
+      isCreatingChecklistFolder: false,
+      checklistFolderDraft: null,
+      checklistFolderOpenState: {},
+      checklistEditingId: null,
+      checklistEditingDraft: null,
+      draggedChecklistTaskId: null
     },
     init() {
       this.cacheDom();
@@ -57,8 +64,14 @@
     bindGlobalEvents() {
       window.addEventListener("hashchange", () => this.handleRouteChange());
       document.addEventListener("keydown", (event) => {
-        if (event.key === "Escape" && this.state.modalOpen) {
-          this.closeModal();
+        if (event.key === "Escape") {
+          if (this.state.modalOpen) {
+            this.closeModal();
+            return;
+          }
+          if (this.state.isChecklistExpanded) {
+            this.collapseChecklist();
+          }
         }
       });
       this.modalOverlay.addEventListener("click", (event) => {
@@ -105,6 +118,11 @@
       }
     },
     renderQuiz() {
+      document.body.classList.remove("checklist-expanded");
+      if (this.state.isChecklistExpanded) {
+        this.state.isChecklistExpanded = false;
+        this.resetChecklistEditing();
+      }
       this.ensureProfile();
       this.appEl.innerHTML = `
         <section class="card">
@@ -493,6 +511,7 @@
         createdAt: now,
         updatedAt: now,
         checklist: DEFAULT_CHECKLIST_ITEMS.map((item) => ({ ...item })),
+        checklistFolders: [],
         budgetEntries: DEFAULT_BUDGET_ENTRIES.map((item) => ({ ...item }))
       };
       this.saveProfile(profile);
@@ -505,6 +524,68 @@
       if (!Array.isArray(profile.checklist) || profile.checklist.length === 0) {
         profile.checklist = DEFAULT_CHECKLIST_ITEMS.map((item) => ({ ...item }));
         updated = true;
+      }
+      if (!Array.isArray(profile.checklistFolders)) {
+        profile.checklistFolders = [];
+        updated = true;
+      } else if (Array.isArray(profile.checklistFolders)) {
+        const sanitizedFolders = profile.checklistFolders
+          .filter((folder) => folder && typeof folder === "object")
+          .map((folder, index) => {
+            const rawId = typeof folder.id === "string" ? folder.id.trim() : "";
+            const id = rawId.length ? rawId : `folder-${timestamp}-${index}`;
+            let title = typeof folder.title === "string" ? folder.title.trim() : "";
+            if (!title) {
+              title = `Папка ${index + 1}`;
+            }
+            if (folder.id !== id || folder.title !== title) {
+              updated = true;
+            }
+            return {
+              ...folder,
+              id,
+              title
+            };
+          });
+        if (sanitizedFolders.length !== profile.checklistFolders.length) {
+          updated = true;
+        }
+        profile.checklistFolders = sanitizedFolders;
+      }
+      if (Array.isArray(profile.checklist)) {
+        const folderIds = new Set(
+          Array.isArray(profile.checklistFolders)
+            ? profile.checklistFolders.map((folder) => folder.id)
+            : []
+        );
+        const sanitizedChecklist = profile.checklist
+          .filter((item) => item && typeof item === "object")
+          .map((item, index) => {
+            const id =
+              typeof item.id === "string" && item.id.trim().length
+                ? item.id
+                : `task-${timestamp}-${index}`;
+            const title = typeof item.title === "string" ? item.title : String(item.title || "");
+            const done = Boolean(item.done);
+            const folderId =
+              typeof item.folderId === "string" && folderIds.has(item.folderId)
+                ? item.folderId
+                : null;
+            if (item.id !== id || item.title !== title || item.done !== done || (item.folderId || null) !== folderId) {
+              updated = true;
+            }
+            return {
+              ...item,
+              id,
+              title,
+              done,
+              folderId
+            };
+          });
+        if (sanitizedChecklist.length !== profile.checklist.length) {
+          updated = true;
+        }
+        profile.checklist = sanitizedChecklist;
       }
       if (!Array.isArray(profile.budgetEntries) || profile.budgetEntries.length === 0) {
         profile.budgetEntries = DEFAULT_BUDGET_ENTRIES.map((item) => ({ ...item }));
@@ -597,18 +678,161 @@
         </button>
       `;
       }).join("");
-      const checklistItems = (profile && Array.isArray(profile.checklist) ? profile.checklist : DEFAULT_CHECKLIST_ITEMS)
-        .map((item, index) => {
-          const itemId = `check-${item.id || index}`;
-          const checkedAttr = item.done ? "checked" : "";
+      const isChecklistExpanded = Boolean(this.state.isChecklistExpanded);
+      const checklistOverlay = isChecklistExpanded
+        ? '<button type="button" class="checklist-overlay" data-action="collapse-checklist" aria-label="Свернуть чек лист"></button>'
+        : "";
+      const checklistContainerClasses = [
+        "dashboard-module",
+        "checklist",
+        isChecklistExpanded ? "checklist--expanded" : ""
+      ]
+        .filter(Boolean)
+        .join(" ");
+      const modulesClasses = [
+        "dashboard-modules",
+        isChecklistExpanded ? "dashboard-modules--checklist-expanded" : ""
+      ]
+        .filter(Boolean)
+        .join(" ");
+      const expandLabel = isChecklistExpanded ? "Свернуть чек лист" : "Развернуть чек лист";
+      const expandIcon = isChecklistExpanded ? "✕" : "⤢";
+      const checklistEditingId = this.state.checklistEditingId;
+      const checklistDraft = this.state.checklistEditingDraft || {};
+      const folders = Array.isArray(profile?.checklistFolders) ? profile.checklistFolders : [];
+      const folderState = { ...this.state.checklistFolderOpenState };
+      const folderIds = new Set(folders.map((folder) => folder.id));
+      let folderStateChanged = false;
+      Object.keys(folderState).forEach((folderId) => {
+        if (!folderIds.has(folderId)) {
+          delete folderState[folderId];
+          folderStateChanged = true;
+        }
+      });
+      folders.forEach((folder) => {
+        if (!(folder.id in folderState)) {
+          folderState[folder.id] = false;
+          folderStateChanged = true;
+        }
+      });
+      if (folderStateChanged) {
+        this.state.checklistFolderOpenState = folderState;
+      }
+      const checklistSource = Array.isArray(profile?.checklist) ? profile.checklist : DEFAULT_CHECKLIST_ITEMS;
+      const itemsMeta = checklistSource.map((item, index) => {
+        const key = this.getChecklistItemKey(item, index);
+        const folderId = folderIds.has(item.folderId) ? item.folderId : null;
+        return {
+          item,
+          index,
+          key,
+          folderId
+        };
+      });
+      const renderChecklistItem = (meta) => {
+        const { item, key, folderId } = meta;
+        const itemId = `check-${key}`;
+        const checkedAttr = item.done ? "checked" : "";
+        const isEditingItem = checklistEditingId === key;
+        if (isEditingItem) {
+          const draftTitle =
+            typeof checklistDraft.title === "string" && checklistEditingId === key
+              ? checklistDraft.title
+              : item.title || "";
           return `
-            <li class="checklist-item">
-              <input type="checkbox" id="${itemId}" data-task-id="${item.id}" ${checkedAttr}>
-              <label for="${itemId}">${item.title}</label>
+            <li class="checklist-item checklist-item--editing" data-task-id="${this.escapeHtml(key)}" data-folder-id="${this.escapeHtml(folderId || "")}">
+              <form class="checklist-item__edit" data-task-id="${this.escapeHtml(key)}" data-prevent-expand>
+                <label for="checklist-edit-${this.escapeHtml(key)}" class="sr-only">Название задачи</label>
+                <input id="checklist-edit-${this.escapeHtml(key)}" type="text" name="title" value="${this.escapeHtml(draftTitle)}" required>
+                <div class="checklist-item__edit-actions">
+                  <button type="submit">Сохранить</button>
+                  <button type="button" class="secondary" data-action="cancel-checklist-edit">Отменить</button>
+                </div>
+              </form>
             </li>
           `;
-        })
-        .join("");
+        }
+        return `
+          <li class="checklist-item" data-task-id="${this.escapeHtml(key)}" data-folder-id="${this.escapeHtml(folderId || "")}" draggable="true">
+            <div class="checklist-item__main">
+              <input type="checkbox" id="${this.escapeHtml(itemId)}" data-task-id="${this.escapeHtml(key)}" ${checkedAttr} data-prevent-expand>
+              <label for="${this.escapeHtml(itemId)}" data-prevent-expand>${this.escapeHtml(item.title || "")}</label>
+            </div>
+            <div class="checklist-item__actions" role="group" aria-label="Действия с задачей">
+              <button type="button" class="checklist-item__action" data-action="edit-checklist" data-task-id="${this.escapeHtml(key)}" aria-label="Редактировать задачу">
+                <span aria-hidden="true">✏️</span>
+                <span class="sr-only">Редактировать</span>
+              </button>
+              <button type="button" class="checklist-item__action checklist-item__action--danger" data-action="delete-checklist" data-task-id="${this.escapeHtml(key)}" aria-label="Удалить задачу">
+                <span aria-hidden="true">🗑️</span>
+                <span class="sr-only">Удалить</span>
+              </button>
+            </div>
+          </li>
+        `;
+      };
+      const groupedItems = new Map();
+      folders.forEach((folder) => {
+        groupedItems.set(folder.id, []);
+      });
+      const rootItems = [];
+      itemsMeta.forEach((meta) => {
+        if (meta.folderId && groupedItems.has(meta.folderId)) {
+          groupedItems.get(meta.folderId).push(meta);
+        } else {
+          rootItems.push(meta);
+        }
+      });
+      const rootItemsMarkup = rootItems.length
+        ? rootItems.map((meta) => renderChecklistItem(meta)).join("")
+        : '<li class="checklist-empty" data-prevent-expand>Свободные задачи появятся здесь.</li>';
+      const folderDraft = this.state.checklistFolderDraft || {};
+      const folderDraftTitle = typeof folderDraft.title === "string" ? folderDraft.title : "";
+      const folderCreationMarkup = this.state.isCreatingChecklistFolder
+        ? `
+            <form id="checklist-folder-form" class="checklist-folder-form" data-prevent-expand>
+              <label for="checklist-folder-input" class="sr-only">Название папки</label>
+              <input id="checklist-folder-input" type="text" name="title" placeholder="Название папки" value="${this.escapeHtml(folderDraftTitle)}" required>
+              <div class="checklist-folder-form__actions">
+                <button type="submit">Сохранить папку</button>
+                <button type="button" class="secondary" data-action="cancel-folder-creation">Отменить</button>
+              </div>
+            </form>
+          `
+        : "";
+      const foldersMarkup = folders.length
+        ? folders
+            .map((folder) => {
+              const folderId = folder.id;
+              const isOpen = Boolean(folderState[folderId]);
+              const folderItems = groupedItems.get(folderId) || [];
+              const folderItemsMarkup = folderItems.length
+                ? folderItems.map((meta) => renderChecklistItem(meta)).join("")
+                : '<li class="checklist-empty" data-prevent-expand>Перетащите задачи сюда.</li>';
+              return `
+                <li class="checklist-folder" data-folder-id="${this.escapeHtml(folderId)}">
+                  <div class="checklist-folder__header checklist-drop-target" data-folder-id="${this.escapeHtml(folderId)}" data-drop-target="${this.escapeHtml(folderId)}" data-prevent-expand>
+                    <button type="button" class="checklist-folder__toggle" data-action="toggle-checklist-folder" data-folder-id="${this.escapeHtml(folderId)}" aria-expanded="${isOpen}" aria-controls="folder-${this.escapeHtml(folderId)}">
+                      <span aria-hidden="true">${isOpen ? "▾" : "▸"}</span>
+                      <span class="sr-only">${isOpen ? "Свернуть" : "Развернуть"} папку</span>
+                    </button>
+                    <span class="checklist-folder__glyph" aria-hidden="true">📁</span>
+                    <span class="checklist-folder__name">${this.escapeHtml(folder.title || "Новая папка")}</span>
+                    <span class="checklist-folder__count" aria-hidden="true">${folderItems.length}</span>
+                  </div>
+                  <ul class="checklist-folder__items checklist-drop-target" id="folder-${this.escapeHtml(folderId)}" data-folder-id="${this.escapeHtml(folderId)}" data-drop-target="${this.escapeHtml(folderId)}" ${isOpen ? "" : "hidden"} data-prevent-expand>
+                    ${folderItemsMarkup}
+                  </ul>
+                </li>
+              `;
+            })
+            .join("")
+        : isChecklistExpanded
+            ? '<li class="checklist-empty checklist-empty--folders" data-prevent-expand>Создайте папку, чтобы сгруппировать чек-поинты.</li>'
+            : "";
+      const checklistFoldersMarkup = foldersMarkup
+        ? `<ul class="checklist-folders" data-prevent-expand>${foldersMarkup}</ul>`
+        : '<ul class="checklist-folders" data-prevent-expand></ul>';
       const budgetEntries = Array.isArray(profile?.budgetEntries) ? profile.budgetEntries : [];
       const decoratedBudgetEntries = budgetEntries.map((entry, index) => {
         const amountValue = Number(entry.amount);
@@ -705,15 +929,29 @@
             ${introBlock}
             ${daysBlock}
           </header>
-          <div class="dashboard-modules">
-            <section class="dashboard-module checklist" data-area="checklist" aria-labelledby="checklist-title">
+          <div class="${modulesClasses}">
+            ${checklistOverlay}
+            <section class="${checklistContainerClasses}" data-area="checklist" aria-labelledby="checklist-title" data-expanded="${isChecklistExpanded}">
               <div class="module-header">
                 <h2 id="checklist-title">Чек лист</h2>
+                <div class="module-header__actions">
+                  <button type="button" class="module-header__icon-button" data-action="start-checklist-folder" data-prevent-expand aria-label="Создать папку">
+                    <span aria-hidden="true">📁</span>
+                    <span class="sr-only">Создать папку</span>
+                  </button>
+                  <button type="button" class="module-header__icon-button" data-action="toggle-checklist-expand" data-prevent-expand aria-label="${expandLabel}" aria-expanded="${isChecklistExpanded}">
+                    <span aria-hidden="true">${expandIcon}</span>
+                  </button>
+                </div>
               </div>
-              <ul class="checklist-items">
-                ${checklistItems}
-              </ul>
-              <form id="checklist-form" class="checklist-form">
+              ${folderCreationMarkup}
+              <div class="checklist-content" data-prevent-expand>
+                <ul class="checklist-items checklist-items--root checklist-drop-target" data-drop-target="root">
+                  ${rootItemsMarkup}
+                </ul>
+                ${checklistFoldersMarkup}
+              </div>
+              <form id="checklist-form" class="checklist-form" data-prevent-expand>
                 <label for="checklist-input" class="sr-only">Новая задача</label>
                 <input id="checklist-input" type="text" name="task" placeholder="Добавить задачу" autocomplete="off" required>
                 <button type="submit">Добавить</button>
@@ -754,6 +992,7 @@
           </div>
         </section>
       `;
+      document.body.classList.toggle("checklist-expanded", this.state.isChecklistExpanded);
       this.bindDashboardEvents(previousTotal, totalBudget);
     },
     bindDashboardEvents(previousTotal, totalBudget) {
@@ -787,6 +1026,151 @@
           this.addChecklistItem(value);
         });
       }
+      const createFolderButton = this.appEl.querySelector('[data-action="start-checklist-folder"]');
+      if (createFolderButton) {
+        createFolderButton.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          this.startChecklistFolderCreation();
+        });
+      }
+      const folderForm = document.getElementById("checklist-folder-form");
+      if (folderForm) {
+        folderForm.addEventListener("submit", (event) => {
+          event.preventDefault();
+          const input = folderForm.querySelector("input[name='title']");
+          if (!input) return;
+          const value = input.value.trim();
+          if (!value) {
+            input.focus();
+            return;
+          }
+          this.createChecklistFolder(value);
+        });
+        const folderInput = folderForm.querySelector("input[name='title']");
+        if (folderInput) {
+          folderInput.addEventListener("input", () => {
+            this.state.checklistFolderDraft = {
+              title: folderInput.value
+            };
+          });
+          requestAnimationFrame(() => {
+            folderInput.focus();
+            folderInput.select();
+          });
+        }
+      }
+      this.appEl
+        .querySelectorAll('[data-action="cancel-folder-creation"]')
+        .forEach((button) => {
+          button.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            this.cancelChecklistFolderCreation();
+          });
+        });
+      this.appEl
+        .querySelectorAll('[data-action="toggle-checklist-folder"]')
+        .forEach((button) => {
+          button.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            const folderId = button.dataset.folderId;
+            if (!folderId) return;
+            this.toggleChecklistFolder(folderId);
+          });
+        });
+      this.appEl.querySelectorAll(".checklist-item").forEach((item) => {
+        if (item.classList.contains("checklist-item--editing")) {
+          return;
+        }
+        if (!item.hasAttribute("draggable")) {
+          return;
+        }
+        item.addEventListener("dragstart", (event) => this.handleChecklistDragStart(event));
+        item.addEventListener("dragend", (event) => this.handleChecklistDragEnd(event));
+      });
+      this.appEl.querySelectorAll("[data-drop-target]").forEach((target) => {
+        target.addEventListener("dragover", (event) => this.handleChecklistDragOver(event));
+        target.addEventListener("dragleave", (event) => this.handleChecklistDragLeave(event));
+        target.addEventListener("drop", (event) => this.handleChecklistDrop(event));
+      });
+      const checklistModule = this.appEl.querySelector(".dashboard-module.checklist");
+      if (checklistModule) {
+        checklistModule.addEventListener("click", (event) => {
+          if (event.target.closest("[data-prevent-expand], .checklist-item, .checklist-form")) {
+            return;
+          }
+          if (!this.state.isChecklistExpanded) {
+            this.expandChecklist();
+          }
+        });
+      }
+      const expandButton = this.appEl.querySelector('[data-action="toggle-checklist-expand"]');
+      if (expandButton) {
+        expandButton.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          this.toggleChecklistExpansion();
+        });
+      }
+      const checklistOverlayEl = this.appEl.querySelector(".checklist-overlay");
+      if (checklistOverlayEl) {
+        checklistOverlayEl.addEventListener("click", (event) => {
+          event.preventDefault();
+          this.collapseChecklist();
+        });
+      }
+      this.appEl.querySelectorAll(".checklist-item__action").forEach((button) => {
+        button.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const action = button.dataset.action;
+          const taskId = button.dataset.taskId;
+          if (!taskId) return;
+          if (action === "edit-checklist") {
+            this.startChecklistEdit(taskId);
+          } else if (action === "delete-checklist") {
+            this.deleteChecklistItem(taskId);
+          }
+        });
+      });
+      this.appEl.querySelectorAll(".checklist-item__edit").forEach((form) => {
+        form.addEventListener("submit", (event) => {
+          event.preventDefault();
+          const taskId = form.dataset.taskId;
+          if (!taskId) return;
+          const input = form.querySelector("input[name='title']");
+          if (!input) return;
+          const value = input.value.trim();
+          if (!value) {
+            input.focus();
+            return;
+          }
+          this.updateChecklistItem(taskId, value);
+        });
+        const input = form.querySelector("input[name='title']");
+        if (input) {
+          input.addEventListener("input", () => {
+            this.state.checklistEditingDraft = {
+              title: input.value
+            };
+          });
+          requestAnimationFrame(() => {
+            input.focus();
+            input.select();
+          });
+        }
+      });
+      this.appEl
+        .querySelectorAll('[data-action="cancel-checklist-edit"]')
+        .forEach((button) => {
+          button.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            this.cancelChecklistEdit();
+          });
+        });
       const budgetForm = document.getElementById("budget-form");
       if (budgetForm) {
         budgetForm.addEventListener("submit", (event) => {
@@ -892,16 +1276,110 @@
       }
       this.openModal(element);
     },
+    toggleChecklistExpansion() {
+      if (this.state.isChecklistExpanded) {
+        this.collapseChecklist();
+      } else {
+        this.expandChecklist();
+      }
+    },
+    expandChecklist() {
+      if (this.state.isChecklistExpanded) {
+        return;
+      }
+      this.state.isChecklistExpanded = true;
+      this.renderDashboard();
+    },
+    collapseChecklist() {
+      if (!this.state.isChecklistExpanded) {
+        return;
+      }
+      this.state.isChecklistExpanded = false;
+      this.resetChecklistEditing();
+      this.renderDashboard();
+    },
+    resetChecklistEditing() {
+      this.state.checklistEditingId = null;
+      this.state.checklistEditingDraft = null;
+    },
+    startChecklistEdit(taskId) {
+      if (!taskId) return;
+      const items = Array.isArray(this.state.profile?.checklist) ? this.state.profile.checklist : [];
+      let targetItem = null;
+      items.forEach((item, index) => {
+        const key = this.getChecklistItemKey(item, index);
+        if (!targetItem && key === taskId) {
+          targetItem = { ...item, id: key };
+        }
+      });
+      if (!targetItem) return;
+      this.state.checklistEditingId = taskId;
+      this.state.checklistEditingDraft = {
+        title: targetItem.title || ""
+      };
+      if (!this.state.isChecklistExpanded) {
+        this.state.isChecklistExpanded = true;
+      }
+      this.renderDashboard();
+    },
+    cancelChecklistEdit() {
+      this.resetChecklistEditing();
+      this.renderDashboard();
+    },
+    updateChecklistItem(taskId, title) {
+      const value = typeof title === "string" ? title.trim() : "";
+      if (!taskId || !value) {
+        return;
+      }
+      const current = Array.isArray(this.state.profile?.checklist) ? this.state.profile.checklist : [];
+      const next = current.map((item, index) => {
+        const key = this.getChecklistItemKey(item, index);
+        if (key === taskId) {
+          return {
+            ...item,
+            id: key,
+            title: value
+          };
+        }
+        if (item && item.id === key) {
+          return item;
+        }
+        return {
+          ...item,
+          id: key
+        };
+      });
+      this.resetChecklistEditing();
+      this.updateProfile({ checklist: next });
+      this.renderDashboard();
+    },
+    deleteChecklistItem(taskId) {
+      if (!taskId) return;
+      const current = Array.isArray(this.state.profile?.checklist) ? this.state.profile.checklist : [];
+      const next = current.filter((item, index) => this.getChecklistItemKey(item, index) !== taskId);
+      this.resetChecklistEditing();
+      this.updateProfile({ checklist: next });
+      this.renderDashboard();
+    },
     toggleChecklistItem(taskId, done) {
       const current = Array.isArray(this.state.profile?.checklist) ? this.state.profile.checklist : [];
-      const next = current.map((item) =>
-        item.id === taskId
-          ? {
-              ...item,
-              done: Boolean(done)
-            }
-          : item
-      );
+      const next = current.map((item, index) => {
+        const key = this.getChecklistItemKey(item, index);
+        if (key === taskId) {
+          return {
+            ...item,
+            id: key,
+            done: Boolean(done)
+          };
+        }
+        if (item && item.id === key) {
+          return item;
+        }
+        return {
+          ...item,
+          id: key
+        };
+      });
       this.updateProfile({ checklist: next });
     },
     addChecklistItem(title) {
@@ -911,11 +1389,198 @@
         {
           id: `task-${Date.now()}`,
           title,
-          done: false
+          done: false,
+          folderId: null
         }
       ];
+      this.resetChecklistEditing();
       this.updateProfile({ checklist: next });
       this.renderDashboard();
+    },
+    startChecklistFolderCreation() {
+      if (!this.state.isChecklistExpanded) {
+        this.state.isChecklistExpanded = true;
+      }
+      this.state.isCreatingChecklistFolder = true;
+      this.state.checklistFolderDraft = {
+        title: this.state.checklistFolderDraft?.title || ""
+      };
+      this.renderDashboard();
+    },
+    cancelChecklistFolderCreation() {
+      if (!this.state.isCreatingChecklistFolder) {
+        return;
+      }
+      this.state.isCreatingChecklistFolder = false;
+      this.state.checklistFolderDraft = null;
+      this.renderDashboard();
+    },
+    createChecklistFolder(title) {
+      const value = typeof title === "string" ? title.trim() : "";
+      if (!value) {
+        return;
+      }
+      const folders = Array.isArray(this.state.profile?.checklistFolders) ? this.state.profile.checklistFolders : [];
+      const newFolder = {
+        id: `folder-${Date.now()}`,
+        title: value
+      };
+      const nextFolders = [...folders, newFolder];
+      this.state.isCreatingChecklistFolder = false;
+      this.state.checklistFolderDraft = null;
+      this.state.checklistFolderOpenState = {
+        ...this.state.checklistFolderOpenState,
+        [newFolder.id]: false
+      };
+      this.updateProfile({ checklistFolders: nextFolders });
+      this.renderDashboard();
+    },
+    toggleChecklistFolder(folderId) {
+      if (!folderId) {
+        return;
+      }
+      const folders = Array.isArray(this.state.profile?.checklistFolders) ? this.state.profile.checklistFolders : [];
+      if (!folders.some((folder) => folder && folder.id === folderId)) {
+        return;
+      }
+      const openState = {
+        ...this.state.checklistFolderOpenState
+      };
+      openState[folderId] = !openState[folderId];
+      this.state.checklistFolderOpenState = openState;
+      this.renderDashboard();
+    },
+    assignChecklistItemToFolder(taskId, folderId) {
+      if (!taskId) return;
+      const folders = Array.isArray(this.state.profile?.checklistFolders) ? this.state.profile.checklistFolders : [];
+      const validFolderId =
+        typeof folderId === "string" && folders.some((folder) => folder && folder.id === folderId)
+          ? folderId
+          : null;
+      const current = Array.isArray(this.state.profile?.checklist) ? this.state.profile.checklist : [];
+      let changed = false;
+      const next = current.map((item, index) => {
+        const key = this.getChecklistItemKey(item, index);
+        if (key === taskId) {
+          const updatedItem = {
+            ...item,
+            id: key,
+            folderId: validFolderId
+          };
+          if ((item.folderId || null) !== validFolderId) {
+            changed = true;
+          }
+          return updatedItem;
+        }
+        const existingFolderId =
+          typeof item.folderId === "string" && folders.some((folder) => folder && folder.id === item.folderId)
+            ? item.folderId
+            : null;
+        if (item && item.id === key && item.folderId === existingFolderId) {
+          return item;
+        }
+        return {
+          ...item,
+          id: key,
+          folderId: existingFolderId
+        };
+      });
+      if (!changed) {
+        return;
+      }
+      this.updateProfile({ checklist: next });
+      this.renderDashboard();
+    },
+    handleChecklistDragStart(event) {
+      const target = event?.currentTarget;
+      const taskId = target?.dataset?.taskId;
+      if (!taskId) {
+        return;
+      }
+      this.state.draggedChecklistTaskId = taskId;
+      if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = "move";
+        try {
+          event.dataTransfer.setData("text/plain", taskId);
+        } catch (error) {
+          // ignore inability to set data in some environments
+        }
+      }
+      if (target) {
+        target.classList.add("checklist-item--dragging");
+      }
+    },
+    handleChecklistDragEnd(event) {
+      const target = event?.currentTarget;
+      if (target) {
+        target.classList.remove("checklist-item--dragging");
+      }
+      this.clearChecklistDropTargets();
+      this.state.draggedChecklistTaskId = null;
+    },
+    handleChecklistDragOver(event) {
+      if (event) {
+        event.preventDefault();
+      }
+      if (event?.dataTransfer) {
+        event.dataTransfer.dropEffect = "move";
+      }
+      const target = event?.currentTarget;
+      if (!target) {
+        return;
+      }
+      if (!this.state.draggedChecklistTaskId) {
+        const transferData = event?.dataTransfer?.getData("text/plain");
+        if (!transferData) {
+          return;
+        }
+      }
+      target.classList.add("checklist-drop-target--active");
+    },
+    handleChecklistDragLeave(event) {
+      const target = event?.currentTarget;
+      if (!target) {
+        return;
+      }
+      const related = event?.relatedTarget;
+      if (related && target.contains(related)) {
+        return;
+      }
+      target.classList.remove("checklist-drop-target--active");
+    },
+    handleChecklistDrop(event) {
+      if (event) {
+        event.preventDefault();
+      }
+      const target = event?.currentTarget;
+      if (!target) {
+        return;
+      }
+      const dropTarget = target.dataset?.dropTarget || "";
+      let taskId = this.state.draggedChecklistTaskId;
+      if (event?.dataTransfer) {
+        const transferred = event.dataTransfer.getData("text/plain");
+        if (transferred) {
+          taskId = transferred;
+        }
+      }
+      target.classList.remove("checklist-drop-target--active");
+      this.clearChecklistDropTargets();
+      if (!taskId) {
+        this.state.draggedChecklistTaskId = null;
+        return;
+      }
+      const folderId = dropTarget === "root" ? null : dropTarget;
+      this.assignChecklistItemToFolder(taskId, folderId);
+      this.state.draggedChecklistTaskId = null;
+    },
+    clearChecklistDropTargets() {
+      if (!this.appEl) {
+        return;
+      }
+      this.appEl.querySelectorAll(".checklist-drop-target--active").forEach((element) => {
+        element.classList.remove("checklist-drop-target--active");
+      });
     },
     addBudgetEntry(title, amount) {
       const current = Array.isArray(this.state.profile?.budgetEntries) ? this.state.profile.budgetEntries : [];
@@ -1087,6 +1752,12 @@
     formatCurrency(value) {
       const safeValue = Number.isFinite(value) ? value : 0;
       return `${currencyFormatter.format(Math.max(0, Math.round(safeValue)))}` + " ₽";
+    },
+    getChecklistItemKey(item, index) {
+      if (item && typeof item.id === "string" && item.id) {
+        return item.id;
+      }
+      return `task-${index}`;
     },
     escapeHtml(value) {
       return String(value ?? "")
