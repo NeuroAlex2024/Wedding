@@ -33,7 +33,11 @@
       budgetEditingDraft: null,
       isChecklistExpanded: false,
       checklistEditingId: null,
-      checklistEditingDraft: null
+      checklistEditingDraft: null,
+      checklistFocusTrapElement: null,
+      checklistFocusTrapHandler: null,
+      checklistLastFocused: null,
+      checklistLastFocusedSelector: null
     },
     init() {
       this.cacheDom();
@@ -114,6 +118,7 @@
       }
     },
     renderQuiz() {
+      this.teardownChecklistFocusTrap();
       document.body.classList.remove("checklist-expanded");
       if (this.state.isChecklistExpanded) {
         this.state.isChecklistExpanded = false;
@@ -561,6 +566,7 @@
     renderDashboard() {
       this.ensureProfile();
       this.ensureDashboardData();
+      this.teardownChecklistFocusTrap();
       const profile = this.state.profile;
       const hasProfile = Boolean(profile);
       const quizCompleted = Boolean(profile && profile.quizCompleted);
@@ -630,6 +636,7 @@
         .join(" ");
       const expandLabel = isChecklistExpanded ? "Свернуть чек лист" : "Развернуть чек лист";
       const expandIcon = isChecklistExpanded ? "✕" : "⤢";
+      const backgroundInertAttributes = isChecklistExpanded ? ' aria-hidden="true" tabindex="-1"' : "";
       const checklistEditingId = this.state.checklistEditingId;
       const checklistDraft = this.state.checklistEditingDraft || {};
       const checklistItems = (profile && Array.isArray(profile.checklist) ? profile.checklist : DEFAULT_CHECKLIST_ITEMS)
@@ -792,7 +799,7 @@
                 <button type="submit">Добавить</button>
               </form>
             </section>
-            <section class="dashboard-module tools" data-area="tools" aria-labelledby="tools-title">
+            <section class="dashboard-module tools" data-area="tools" aria-labelledby="tools-title"${backgroundInertAttributes}>
               <div class="module-header">
                 <h2 id="tools-title">Инструменты</h2>
               </div>
@@ -800,7 +807,7 @@
                 ${toolsCards}
               </div>
             </section>
-            <section class="dashboard-module budget" data-area="budget" aria-labelledby="budget-title">
+            <section class="dashboard-module budget" data-area="budget" aria-labelledby="budget-title"${backgroundInertAttributes}>
               <div class="module-header">
                 <h2 id="budget-title">Бюджет</h2>
               </div>
@@ -886,6 +893,11 @@
           event.preventDefault();
           this.collapseChecklist();
         });
+      }
+      if (this.state.isChecklistExpanded && checklistModule) {
+        this.setupChecklistFocusTrap(checklistModule);
+      } else if (!this.state.isChecklistExpanded) {
+        this.restoreChecklistFocusOrigin();
       }
       this.appEl.querySelectorAll(".checklist-item__action").forEach((button) => {
         button.addEventListener("click", (event) => {
@@ -1017,6 +1029,159 @@
       }
       this.animateBudget(previousTotal, totalBudget);
     },
+    getFocusableElements(container) {
+      if (!container) return [];
+      const selectorList = [
+        'a[href]',
+        'button:not([disabled])',
+        'input:not([disabled]):not([type="hidden"])',
+        'select:not([disabled])',
+        'textarea:not([disabled])',
+        '[tabindex]:not([tabindex="-1"])'
+      ];
+      const focusable = Array.from(container.querySelectorAll(selectorList.join(",")));
+      return focusable.filter((element) => {
+        if (!element) return false;
+        if (element.hasAttribute("disabled")) return false;
+        if (element.getAttribute("aria-hidden") === "true") return false;
+        if (element.closest('[aria-hidden="true"]')) return false;
+        if (element.tabIndex < 0) return false;
+        return element.getClientRects().length > 0;
+      });
+    },
+    setupChecklistFocusTrap(checklistModule) {
+      if (!checklistModule) return;
+      this.teardownChecklistFocusTrap();
+      const focusableElements = this.getFocusableElements(checklistModule);
+      if (!focusableElements.length) {
+        checklistModule.setAttribute("tabindex", "-1");
+      } else {
+        checklistModule.removeAttribute("tabindex");
+      }
+      const activeElement = document.activeElement;
+      const isActiveInside = activeElement && checklistModule.contains(activeElement);
+      const focusTarget = isActiveInside ? null : focusableElements[0] || checklistModule;
+      const handleKeydown = (event) => {
+        if (event.key !== "Tab") {
+          return;
+        }
+        const elements = this.getFocusableElements(checklistModule);
+        if (!elements.length) {
+          event.preventDefault();
+          checklistModule.focus();
+          return;
+        }
+        const first = elements[0];
+        const last = elements[elements.length - 1];
+        const current = document.activeElement;
+        if (event.shiftKey) {
+          if (current === first || !checklistModule.contains(current)) {
+            event.preventDefault();
+            last.focus();
+          }
+        } else if (current === last || !checklistModule.contains(current)) {
+          event.preventDefault();
+          first.focus();
+        }
+      };
+      checklistModule.addEventListener("keydown", handleKeydown);
+      this.state.checklistFocusTrapElement = checklistModule;
+      this.state.checklistFocusTrapHandler = handleKeydown;
+      if (!isActiveInside && focusTarget && typeof focusTarget.focus === "function") {
+        requestAnimationFrame(() => {
+          focusTarget.focus();
+        });
+      }
+    },
+    teardownChecklistFocusTrap() {
+      if (this.state.checklistFocusTrapElement && this.state.checklistFocusTrapHandler) {
+        this.state.checklistFocusTrapElement.removeEventListener("keydown", this.state.checklistFocusTrapHandler);
+      }
+      this.state.checklistFocusTrapElement = null;
+      this.state.checklistFocusTrapHandler = null;
+    },
+    captureChecklistFocusOrigin() {
+      const activeElement = document.activeElement;
+      if (!activeElement || typeof activeElement.focus !== "function") {
+        this.state.checklistLastFocused = null;
+        this.state.checklistLastFocusedSelector = null;
+        return;
+      }
+      if (activeElement === document.body || activeElement === document.documentElement) {
+        this.state.checklistLastFocused = null;
+        this.state.checklistLastFocusedSelector = '[data-action="toggle-checklist-expand"]';
+        return;
+      }
+      this.state.checklistLastFocused = activeElement;
+      this.state.checklistLastFocusedSelector = this.buildChecklistFocusSelector(activeElement);
+    },
+    restoreChecklistFocusOrigin() {
+      if (!this.state.checklistLastFocused && !this.state.checklistLastFocusedSelector) {
+        return;
+      }
+      const focusElement = (element) => {
+        if (!element || typeof element.focus !== "function") {
+          return false;
+        }
+        requestAnimationFrame(() => {
+          element.focus();
+        });
+        return true;
+      };
+      let restored = false;
+      const storedElement = this.state.checklistLastFocused;
+      if (storedElement && document.contains(storedElement)) {
+        restored = focusElement(storedElement);
+      }
+      if (!restored && this.state.checklistLastFocusedSelector) {
+        const selector = this.state.checklistLastFocusedSelector;
+        const fallback = this.appEl ? this.appEl.querySelector(selector) : null;
+        if (fallback) {
+          restored = focusElement(fallback);
+        }
+      }
+      if (!restored && this.appEl) {
+        const expandButton = this.appEl.querySelector('[data-action="toggle-checklist-expand"]');
+        if (expandButton) {
+          restored = focusElement(expandButton);
+        }
+      }
+      this.state.checklistLastFocused = null;
+      this.state.checklistLastFocusedSelector = null;
+    },
+    buildChecklistFocusSelector(element) {
+      if (!element) {
+        return null;
+      }
+      if (element.id) {
+        return `#${this.escapeSelectorValue(element.id)}`;
+      }
+      if (element.hasAttribute("data-action")) {
+        const value = element.getAttribute("data-action");
+        if (value) {
+          return `[data-action="${this.escapeSelectorValue(value)}"]`;
+        }
+      }
+      if (element.hasAttribute("data-modal-target")) {
+        const value = element.getAttribute("data-modal-target");
+        if (value) {
+          return `[data-modal-target="${this.escapeSelectorValue(value)}"]`;
+        }
+      }
+      if (element.name) {
+        return `[name="${this.escapeSelectorValue(element.name)}"]`;
+      }
+      return null;
+    },
+    escapeSelectorValue(value) {
+      if (typeof value !== "string") {
+        return "";
+      }
+      if (typeof CSS !== "undefined" && CSS && typeof CSS.escape === "function") {
+        return CSS.escape(value);
+      }
+      return value.replace(/['"\\]/g, "\\$&");
+    },
     handleModuleActivation(event, element) {
       const toolType = element?.dataset?.toolType;
       if (toolType === "quiz") {
@@ -1053,6 +1218,7 @@
       if (this.state.isChecklistExpanded) {
         return;
       }
+      this.captureChecklistFocusOrigin();
       this.state.isChecklistExpanded = true;
       this.renderDashboard();
     },
@@ -1060,6 +1226,7 @@
       if (!this.state.isChecklistExpanded) {
         return;
       }
+      this.teardownChecklistFocusTrap();
       this.state.isChecklistExpanded = false;
       this.resetChecklistEditing();
       this.renderDashboard();
@@ -1084,6 +1251,7 @@
         title: targetItem.title || ""
       };
       if (!this.state.isChecklistExpanded) {
+        this.captureChecklistFocusOrigin();
         this.state.isChecklistExpanded = true;
       }
       this.renderDashboard();
