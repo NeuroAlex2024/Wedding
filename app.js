@@ -1028,6 +1028,11 @@
             <div class="checklist-folder__actions" role="group" aria-label="Действия с папкой">
               <button type="button" class="checklist-folder__action" data-action="edit-folder" data-folder-id="${safeFolderId}" aria-label="Переименовать папку">
                 <span aria-hidden="true">✏️</span>
+                <span class="sr-only">Редактировать</span>
+              </button>
+              <button type="button" class="checklist-folder__action checklist-folder__action--danger" data-action="delete-folder" data-folder-id="${safeFolderId}" aria-label="Удалить папку">
+                <span aria-hidden="true">🗑️</span>
+                <span class="sr-only">Удалить</span>
               </button>
             </div>
           </div>
@@ -1125,6 +1130,15 @@
           const folderId = button.dataset.folderId;
           if (!folderId) return;
           this.startChecklistFolderEdit(folderId);
+        });
+      });
+      this.appEl.querySelectorAll('[data-action="delete-folder"]').forEach((button) => {
+        button.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const folderId = button.dataset.folderId;
+          if (!folderId) return;
+          this.deleteChecklistFolder(folderId);
         });
       });
       this.appEl.querySelectorAll(".checklist-item__action").forEach((button) => {
@@ -1573,6 +1587,44 @@
       );
       this.resetChecklistFolderEditing();
       this.updateProfile({ checklistFolders: next });
+      this.renderDashboard();
+    },
+    deleteChecklistFolder(folderId) {
+      if (!folderId) return;
+      const folders = Array.isArray(this.state.profile?.checklistFolders) ? this.state.profile.checklistFolders : [];
+      const nextFolders = folders.filter((folder) => folder && folder.id !== folderId);
+      if (nextFolders.length === folders.length) {
+        return;
+      }
+      const tasks = Array.isArray(this.state.profile?.checklist) ? this.state.profile.checklist : [];
+      let tasksChanged = false;
+      const nextTasks = tasks.map((item, index) => {
+        const key = this.getChecklistItemKey(item, index);
+        if (item?.folderId === folderId) {
+          tasksChanged = true;
+          return {
+            ...item,
+            id: key,
+            folderId: null
+          };
+        }
+        if (item && item.id === key) {
+          return item;
+        }
+        return {
+          ...item,
+          id: key
+        };
+      });
+      this.resetChecklistFolderEditing();
+      const collapse = { ...this.state.checklistFoldersCollapse };
+      delete collapse[folderId];
+      this.state.checklistFoldersCollapse = collapse;
+      const patch = { checklistFolders: nextFolders };
+      if (tasksChanged) {
+        patch.checklist = nextTasks;
+      }
+      this.updateProfile(patch);
       this.renderDashboard();
     },
     updateChecklistItem(taskId, title) {
