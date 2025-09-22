@@ -61,9 +61,41 @@ const DASHBOARD_TOOL_ITEMS = [
 ];
 
 const DEFAULT_CHECKLIST_ITEMS = [
-  { id: "task-1", title: "Выбрать дату и площадку", done: false },
-  { id: "task-2", title: "Согласовать бюджет с партнёром", done: false },
-  { id: "task-3", title: "Составить список гостей", done: false }
+  {
+    id: "task-1",
+    title: "Выбрать дату и площадку",
+    done: false,
+    order: 1,
+    type: "task",
+    folderId: null
+  },
+  {
+    id: "task-2",
+    title: "Согласовать бюджет с партнёром",
+    done: false,
+    order: 2,
+    type: "task",
+    folderId: null
+  },
+  {
+    id: "task-3",
+    title: "Составить список гостей",
+    done: false,
+    order: 3,
+    type: "task",
+    folderId: null
+  }
+];
+
+const DEFAULT_CHECKLIST_FOLDERS = [];
+
+const CHECKLIST_FOLDER_COLORS = [
+  "#F5D0D4",
+  "#F9E5C0",
+  "#D8F0E3",
+  "#DDE6FA",
+  "#F3DFFD",
+  "#FFE4F0"
 ];
 
 const DEFAULT_BUDGET_ENTRIES = [
