@@ -523,6 +523,180 @@ body.checklist-expanded {
   gap: 0.75rem;
 }
 
+.checklist-folder {
+  border-radius: 16px;
+  border: 1px solid rgba(224, 122, 139, 0.18);
+  background: rgba(224, 122, 139, 0.06);
+  padding: 0.55rem;
+  display: grid;
+  gap: 0.65rem;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.checklist-folder[data-collapsed="false"] {
+  box-shadow: 0 16px 34px rgba(224, 122, 139, 0.18);
+  transform: translateY(-1px);
+}
+
+.checklist-folder__header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.65rem;
+  border-radius: 12px;
+  padding: 0.55rem 0.75rem;
+  background: var(--folder-color);
+  color: #3a2a4a;
+  border: 1px solid rgba(58, 42, 74, 0.12);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.checklist-folder__header:hover,
+.checklist-folder__header:focus-within {
+  box-shadow: 0 12px 24px rgba(58, 42, 74, 0.16);
+  transform: translateY(-1px);
+}
+
+.checklist-folder__toggle {
+  border: none;
+  background: rgba(58, 42, 74, 0.12);
+  border-radius: 999px;
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  font-size: 0.9rem;
+  cursor: pointer;
+  color: inherit;
+}
+
+.checklist-folder__toggle:hover,
+.checklist-folder__toggle:focus-visible {
+  background: rgba(58, 42, 74, 0.22);
+}
+
+.checklist-folder__badge {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-weight: 600;
+  min-width: 0;
+}
+
+.checklist-folder__icon {
+  font-size: 1.05rem;
+}
+
+.checklist-folder__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.checklist-folder__count {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(58, 42, 74, 0.6);
+}
+
+.checklist-folder__items {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 2.6rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.checklist-folder__items[hidden] {
+  display: none;
+}
+
+.checklist-folder__empty {
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  border: 1px dashed rgba(58, 42, 74, 0.28);
+  color: rgba(58, 42, 74, 0.6);
+  background: rgba(255, 255, 255, 0.65);
+  font-size: 0.9rem;
+}
+
+.checklist-folder--editing {
+  background: rgba(224, 122, 139, 0.12);
+  border: 1px dashed rgba(224, 122, 139, 0.32);
+}
+
+.checklist-folder-form {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.checklist-folder-form__field {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.6rem;
+  background: var(--folder-color);
+  border-radius: 12px;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid rgba(58, 42, 74, 0.15);
+}
+
+.checklist-folder-form__icon {
+  font-size: 1.1rem;
+}
+
+.checklist-folder-form input {
+  border: none;
+  background: transparent;
+  font-weight: 600;
+  color: #3a2a4a;
+}
+
+.checklist-folder-form input::placeholder {
+  color: rgba(58, 42, 74, 0.55);
+}
+
+.checklist-folder-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.checklist-item--nested {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(224, 122, 139, 0.18);
+  box-shadow: none;
+}
+
+.checklist-item--nested:hover,
+.checklist-item--nested:focus-within {
+  box-shadow: 0 12px 28px rgba(224, 122, 139, 0.18);
+}
+
+.checklist-dropzone {
+  border: 1px dashed rgba(224, 122, 139, 0.38);
+  border-radius: 14px;
+  padding: 0.85rem 1rem;
+  text-align: center;
+  font-size: 0.9rem;
+  color: rgba(58, 42, 74, 0.55);
+  background: rgba(255, 255, 255, 0.7);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+  cursor: grab;
+}
+
+.checklist-folder__header.is-drop-target,
+.checklist-dropzone.is-drop-target {
+  box-shadow: 0 0 0 3px rgba(224, 122, 139, 0.4);
+  transform: translateY(-1px);
+  cursor: grabbing;
+}
+
+.checklist-item--dragging {
+  opacity: 0.6;
+  cursor: grabbing;
+}
+
 .checklist-item {
   display: flex;
   align-items: center;
