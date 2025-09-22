@@ -397,6 +397,64 @@ button.secondary:hover {
   color: var(--muted);
 }
 
+.dashboard-module.checklist {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.dashboard-module.checklist:hover {
+  box-shadow: 0 16px 32px rgba(47, 42, 59, 0.16);
+}
+
+.dashboard-module.checklist .module-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.dashboard-module.checklist button,
+.dashboard-module.checklist input,
+.dashboard-module.checklist label,
+.dashboard-module.checklist form {
+  cursor: auto;
+}
+
+.checklist-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.checklist-expand {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  border: 1px solid rgba(224, 122, 139, 0.4);
+  background: rgba(224, 122, 139, 0.12);
+  color: var(--accent);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  font-size: 1.1rem;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.checklist-expand:hover,
+.checklist-expand:focus-visible {
+  background: rgba(224, 122, 139, 0.24);
+  border-color: rgba(224, 122, 139, 0.6);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.checklist-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
 .checklist-items {
   list-style: none;
   padding: 0;
@@ -408,11 +466,17 @@ button.secondary:hover {
 .checklist-item {
   display: flex;
   gap: 0.75rem;
-  align-items: flex-start;
+  align-items: center;
   background: rgba(224, 122, 139, 0.08);
   border-radius: 14px;
   padding: 0.75rem 1rem;
   border: 1px solid rgba(224, 122, 139, 0.15);
+  transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.checklist-item:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 26px rgba(224, 122, 139, 0.18);
 }
 
 .checklist-item input[type="checkbox"] {
@@ -422,13 +486,103 @@ button.secondary:hover {
   accent-color: var(--accent);
 }
 
-.checklist-item label {
-  font-weight: 600;
-  color: var(--txt);
+.checklist-item__main {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
 }
 
-.checklist-item input[type="checkbox"]:checked + label {
+.checklist-item__title {
+  font-weight: 600;
+  color: var(--txt);
+  transition: color 0.2s ease;
+}
+
+.checklist-item input[type="checkbox"]:checked + .checklist-item__title {
   text-decoration: line-through;
+  color: var(--muted);
+}
+
+.checklist-item--done .checklist-item__title {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.checklist-item__actions {
+  display: flex;
+  gap: 0.25rem;
+  margin-left: auto;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.checklist-item:hover .checklist-item__actions,
+.checklist-item:focus-within .checklist-item__actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.checklist-item__action {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  background: transparent;
+  border: 1px solid rgba(224, 122, 139, 0.2);
+  color: inherit;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  font-size: 1rem;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.checklist-item__action:hover,
+.checklist-item__action:focus-visible {
+  background: rgba(224, 122, 139, 0.12);
+  border-color: rgba(224, 122, 139, 0.4);
+  outline: none;
+}
+
+.checklist-item__action--danger:hover,
+.checklist-item__action--danger:focus-visible {
+  background: rgba(224, 122, 139, 0.18);
+  border-color: rgba(224, 122, 139, 0.5);
+}
+
+.checklist-item--editing {
+  background: rgba(224, 122, 139, 0.12);
+  border-color: rgba(224, 122, 139, 0.25);
+  box-shadow: 0 10px 24px rgba(224, 122, 139, 0.15);
+}
+
+.checklist-item--editing .checklist-item__actions,
+.checklist-item--editing .checklist-item__main {
+  display: none;
+}
+
+.checklist-item__edit {
+  display: grid;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.checklist-item__edit input[type="text"] {
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(224, 122, 139, 0.4);
+  font-weight: 600;
+}
+
+.checklist-item__edit-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.checklist-item__edit button.secondary {
+  background: rgba(110, 103, 129, 0.12);
   color: var(--muted);
 }
 
@@ -440,6 +594,56 @@ button.secondary:hover {
 
 .checklist-form input {
   flex: 1 1 auto;
+}
+
+.dashboard-module.checklist:not(.checklist--expanded) {
+  cursor: zoom-in;
+}
+
+.dashboard-module.checklist.checklist--expanded {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(680px, 94vw);
+  max-height: 85vh;
+  z-index: 950;
+  padding: 2rem;
+  box-shadow: 0 30px 60px rgba(47, 42, 59, 0.25);
+  cursor: default;
+}
+
+.dashboard-module.checklist.checklist--expanded .checklist-body {
+  overflow-y: auto;
+  padding-right: 0.25rem;
+  max-height: calc(85vh - 120px);
+}
+
+.dashboard-module.checklist.checklist--expanded .checklist-items {
+  gap: 1rem;
+}
+
+.dashboard-module.checklist.checklist--expanded .checklist-form button {
+  align-self: flex-start;
+}
+
+.checklist-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(47, 42, 59, 0.45);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  z-index: 900;
+}
+
+.checklist-overlay--visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+body.has-checklist-expanded {
+  overflow: hidden;
 }
 
 .tools-grid {
@@ -754,6 +958,11 @@ button.secondary:hover {
       "checklist tools"
       "budget budget";
   }
+
+  .dashboard-module.checklist.checklist--expanded {
+    width: min(600px, 94vw);
+    max-height: 88vh;
+  }
 }
 
 @media (max-width: 600px) {
@@ -819,6 +1028,21 @@ button.secondary:hover {
 
   .checklist-form button {
     width: 100%;
+  }
+
+  .checklist-item__actions {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .dashboard-module.checklist.checklist--expanded {
+    width: 92vw;
+    top: 52%;
+    transform: translate(-50%, -52%);
+  }
+
+  .dashboard-module.checklist.checklist--expanded .checklist-body {
+    max-height: calc(88vh - 110px);
   }
 
   .budget-form__fields {

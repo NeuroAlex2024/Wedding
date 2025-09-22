@@ -30,7 +30,10 @@
       lastFocused: null,
       lastBudgetTotal: 0,
       budgetEditingId: null,
-      budgetEditingDraft: null
+      budgetEditingDraft: null,
+      checklistEditingId: null,
+      checklistEditingDraft: null,
+      checklistExpanded: false
     },
     init() {
       this.cacheDom();
@@ -57,8 +60,13 @@
     bindGlobalEvents() {
       window.addEventListener("hashchange", () => this.handleRouteChange());
       document.addEventListener("keydown", (event) => {
-        if (event.key === "Escape" && this.state.modalOpen) {
+        if (event.key !== "Escape") return;
+        if (this.state.modalOpen) {
           this.closeModal();
+          return;
+        }
+        if (this.state.checklistExpanded) {
+          this.collapseChecklist();
         }
       });
       this.modalOverlay.addEventListener("click", (event) => {
@@ -93,6 +101,10 @@
       this.render();
     },
     render() {
+      if (this.state.currentRoute !== "#/dashboard" && this.state.checklistExpanded) {
+        this.state.checklistExpanded = false;
+        document.body.classList.remove("has-checklist-expanded");
+      }
       switch (this.state.currentRoute) {
         case "#/quiz":
           this.renderQuiz();
@@ -601,14 +613,55 @@
         .map((item, index) => {
           const itemId = `check-${item.id || index}`;
           const checkedAttr = item.done ? "checked" : "";
+          const isEditing = this.state.checklistEditingId === item.id;
+          if (isEditing) {
+            const draft = this.state.checklistEditingDraft || {
+              title: item.title || ""
+            };
+            return `
+              <li class="checklist-item checklist-item--editing" data-task-id="${this.escapeHtml(item.id)}">
+                <form class="checklist-item__edit" data-task-id="${this.escapeHtml(item.id)}">
+                  <label for="checklist-edit-${this.escapeHtml(item.id)}" class="sr-only">Название задачи</label>
+                  <input id="checklist-edit-${this.escapeHtml(item.id)}" type="text" name="title" value="${this.escapeHtml(draft.title || "")}" required>
+                  <div class="checklist-item__edit-actions">
+                    <button type="submit">Сохранить</button>
+                    <button type="button" class="secondary" data-action="cancel-checklist-edit">Отменить</button>
+                  </div>
+                </form>
+              </li>
+            `;
+          }
+          const doneClass = item.done ? " checklist-item--done" : "";
           return `
-            <li class="checklist-item">
-              <input type="checkbox" id="${itemId}" data-task-id="${item.id}" ${checkedAttr}>
-              <label for="${itemId}">${item.title}</label>
+            <li class="checklist-item${doneClass}" data-task-id="${this.escapeHtml(item.id)}">
+              <div class="checklist-item__main">
+                <input type="checkbox" id="${this.escapeHtml(itemId)}" data-task-id="${this.escapeHtml(item.id)}" ${checkedAttr}>
+                <label for="${this.escapeHtml(itemId)}" class="checklist-item__title">${this.escapeHtml(item.title || "")}</label>
+              </div>
+              <div class="checklist-item__actions" role="group" aria-label="Действия с задачей">
+                <button type="button" class="checklist-item__action" data-action="edit" data-task-id="${this.escapeHtml(item.id)}" aria-label="Редактировать задачу">
+                  <span aria-hidden="true">✏️</span>
+                  <span class="sr-only">Изменить</span>
+                </button>
+                <button type="button" class="checklist-item__action checklist-item__action--danger" data-action="delete" data-task-id="${this.escapeHtml(item.id)}" aria-label="Удалить задачу">
+                  <span aria-hidden="true">🗑️</span>
+                  <span class="sr-only">Удалить</span>
+                </button>
+              </div>
             </li>
           `;
         })
         .join("");
+      if (this.state.checklistExpanded) {
+        document.body.classList.add("has-checklist-expanded");
+      } else {
+        document.body.classList.remove("has-checklist-expanded");
+      }
+      const checklistModuleClasses = ["dashboard-module", "checklist"];
+      if (this.state.checklistExpanded) {
+        checklistModuleClasses.push("checklist--expanded");
+      }
+      const checklistClass = checklistModuleClasses.join(" ");
       const budgetEntries = Array.isArray(profile?.budgetEntries) ? profile.budgetEntries : [];
       const decoratedBudgetEntries = budgetEntries.map((entry, index) => {
         const amountValue = Number(entry.amount);
@@ -706,18 +759,25 @@
             ${daysBlock}
           </header>
           <div class="dashboard-modules">
-            <section class="dashboard-module checklist" data-area="checklist" aria-labelledby="checklist-title">
+            <section class="${checklistClass}" data-area="checklist" aria-labelledby="checklist-title">
               <div class="module-header">
                 <h2 id="checklist-title">Чек лист</h2>
+                <div class="checklist-header-actions">
+                  <button type="button" class="checklist-expand" data-action="toggle-checklist" aria-label="${this.state.checklistExpanded ? "Свернуть чек-лист" : "Развернуть чек-лист"}" aria-expanded="${this.state.checklistExpanded}">
+                    <span aria-hidden="true">${this.state.checklistExpanded ? "✕" : "⤢"}</span>
+                  </button>
+                </div>
               </div>
-              <ul class="checklist-items">
-                ${checklistItems}
-              </ul>
-              <form id="checklist-form" class="checklist-form">
-                <label for="checklist-input" class="sr-only">Новая задача</label>
-                <input id="checklist-input" type="text" name="task" placeholder="Добавить задачу" autocomplete="off" required>
-                <button type="submit">Добавить</button>
-              </form>
+              <div class="checklist-body">
+                <ul class="checklist-items">
+                  ${checklistItems}
+                </ul>
+                <form id="checklist-form" class="checklist-form">
+                  <label for="checklist-input" class="sr-only">Новая задача</label>
+                  <input id="checklist-input" type="text" name="task" placeholder="Добавить задачу" autocomplete="off" required>
+                  <button type="submit">Добавить</button>
+                </form>
+              </div>
             </section>
             <section class="dashboard-module tools" data-area="tools" aria-labelledby="tools-title">
               <div class="module-header">
@@ -753,6 +813,7 @@
             </section>
           </div>
         </section>
+        <div class="checklist-overlay${this.state.checklistExpanded ? " checklist-overlay--visible" : ""}" data-role="checklist-overlay" aria-hidden="true"></div>
       `;
       this.bindDashboardEvents(previousTotal, totalBudget);
     },
@@ -773,6 +834,54 @@
           this.toggleChecklistItem(taskId, target.checked);
         });
       });
+      this.appEl.querySelectorAll(".checklist-item__action").forEach((button) => {
+        button.addEventListener("click", () => {
+          const action = button.dataset.action;
+          const taskId = button.dataset.taskId;
+          if (!action || !taskId) return;
+          if (action === "edit") {
+            this.startChecklistEdit(taskId);
+          } else if (action === "delete") {
+            this.deleteChecklistItem(taskId);
+          }
+        });
+      });
+      this.appEl.querySelectorAll(".checklist-item__edit").forEach((form) => {
+        form.addEventListener("submit", (event) => {
+          event.preventDefault();
+          const taskId = form.dataset.taskId;
+          if (!taskId) return;
+          const input = form.querySelector("input[name='title']");
+          if (!input) return;
+          const value = input.value.trim();
+          if (!value) {
+            input.focus();
+            return;
+          }
+          this.updateChecklistItem(taskId, value);
+        });
+        const input = form.querySelector("input[name='title']");
+        if (input) {
+          input.addEventListener("input", () => {
+            this.state.checklistEditingDraft = {
+              title: input.value
+            };
+          });
+        }
+      });
+      this.appEl.querySelectorAll("[data-action='cancel-checklist-edit']").forEach((button) => {
+        button.addEventListener("click", () => {
+          this.cancelChecklistEdit();
+        });
+      });
+      const checklistEditingForm = this.appEl.querySelector(".checklist-item__edit");
+      if (checklistEditingForm) {
+        const input = checklistEditingForm.querySelector("input[name='title']");
+        if (input) {
+          input.focus();
+          input.select();
+        }
+      }
       const checklistForm = document.getElementById("checklist-form");
       if (checklistForm) {
         checklistForm.addEventListener("submit", (event) => {
@@ -857,13 +966,43 @@
           this.cancelBudgetEdit();
         });
       });
-      const editingForm = this.appEl.querySelector(".budget-visual__edit");
-      if (editingForm) {
-        const titleInput = editingForm.querySelector("input[name='title']");
+      const budgetEditingForm = this.appEl.querySelector(".budget-visual__edit");
+      if (budgetEditingForm) {
+        const titleInput = budgetEditingForm.querySelector("input[name='title']");
         if (titleInput) {
           titleInput.focus();
           titleInput.select();
         }
+      }
+      const checklistModule = this.appEl.querySelector(".dashboard-module.checklist");
+      if (checklistModule) {
+        checklistModule.addEventListener("click", (event) => {
+          if (this.state.checklistExpanded) return;
+          const target = event.target;
+          if (!target) return;
+          const interactive = target.closest("button, input, label, textarea, select, form, .checklist-item__actions, .checklist-item__edit");
+          if (interactive) {
+            return;
+          }
+          this.expandChecklist();
+        });
+      }
+      const toggleChecklistButton = this.appEl.querySelector("[data-action='toggle-checklist']");
+      if (toggleChecklistButton) {
+        toggleChecklistButton.addEventListener("click", (event) => {
+          event.preventDefault();
+          if (this.state.checklistExpanded) {
+            this.collapseChecklist();
+          } else {
+            this.expandChecklist();
+          }
+        });
+      }
+      const checklistOverlay = this.appEl.querySelector("[data-role='checklist-overlay']");
+      if (checklistOverlay) {
+        checklistOverlay.addEventListener("click", () => {
+          this.collapseChecklist();
+        });
       }
       this.animateBudget(previousTotal, totalBudget);
     },
@@ -914,7 +1053,68 @@
           done: false
         }
       ];
+      this.resetChecklistEditing();
       this.updateProfile({ checklist: next });
+      this.renderDashboard();
+    },
+    startChecklistEdit(taskId) {
+      if (!taskId) return;
+      const items = Array.isArray(this.state.profile?.checklist) ? this.state.profile.checklist : [];
+      const item = items.find((entry) => entry && entry.id === taskId);
+      if (!item) return;
+      this.state.checklistEditingId = taskId;
+      this.state.checklistEditingDraft = {
+        title: item.title || ""
+      };
+      this.renderDashboard();
+    },
+    updateChecklistItem(taskId, title) {
+      if (!taskId) return;
+      const trimmed = title.trim();
+      if (!trimmed) return;
+      const items = Array.isArray(this.state.profile?.checklist) ? this.state.profile.checklist : [];
+      const next = items.map((item) =>
+        item.id === taskId
+          ? {
+              ...item,
+              title: trimmed
+            }
+          : item
+      );
+      this.resetChecklistEditing();
+      this.updateProfile({ checklist: next });
+      this.renderDashboard();
+    },
+    deleteChecklistItem(taskId) {
+      if (!taskId) return;
+      const items = Array.isArray(this.state.profile?.checklist) ? this.state.profile.checklist : [];
+      const next = items.filter((item) => item.id !== taskId);
+      if (next.length === items.length) {
+        return;
+      }
+      if (this.state.checklistEditingId === taskId) {
+        this.resetChecklistEditing();
+      }
+      this.updateProfile({ checklist: next });
+      this.renderDashboard();
+    },
+    cancelChecklistEdit() {
+      if (!this.state.checklistEditingId) return;
+      this.resetChecklistEditing();
+      this.renderDashboard();
+    },
+    resetChecklistEditing() {
+      this.state.checklistEditingId = null;
+      this.state.checklistEditingDraft = null;
+    },
+    expandChecklist() {
+      if (this.state.checklistExpanded) return;
+      this.state.checklistExpanded = true;
+      this.renderDashboard();
+    },
+    collapseChecklist() {
+      if (!this.state.checklistExpanded) return;
+      this.state.checklistExpanded = false;
       this.renderDashboard();
     },
     addBudgetEntry(title, amount) {
