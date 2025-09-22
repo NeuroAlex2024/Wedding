@@ -61,9 +61,9 @@ const DASHBOARD_TOOL_ITEMS = [
 ];
 
 const DEFAULT_CHECKLIST_ITEMS = [
-  { id: "task-1", title: "Выбрать дату и площадку", done: false },
-  { id: "task-2", title: "Согласовать бюджет с партнёром", done: false },
-  { id: "task-3", title: "Составить список гостей", done: false }
+  { id: "task-1", title: "Выбрать дату и площадку", done: false, type: "task" },
+  { id: "task-2", title: "Согласовать бюджет с партнёром", done: false, type: "task" },
+  { id: "task-3", title: "Составить список гостей", done: false, type: "task" }
 ];
 
 const DEFAULT_BUDGET_ENTRIES = [
