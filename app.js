@@ -30,7 +30,10 @@
       lastFocused: null,
       lastBudgetTotal: 0,
       budgetEditingId: null,
-      budgetEditingDraft: null
+      budgetEditingDraft: null,
+      isChecklistExpanded: false,
+      checklistEditingId: null,
+      checklistEditingDraft: null
     },
     init() {
       this.cacheDom();
@@ -57,8 +60,14 @@
     bindGlobalEvents() {
       window.addEventListener("hashchange", () => this.handleRouteChange());
       document.addEventListener("keydown", (event) => {
-        if (event.key === "Escape" && this.state.modalOpen) {
-          this.closeModal();
+        if (event.key === "Escape") {
+          if (this.state.modalOpen) {
+            this.closeModal();
+            return;
+          }
+          if (this.state.isChecklistExpanded) {
+            this.collapseChecklist();
+          }
         }
       });
       this.modalOverlay.addEventListener("click", (event) => {
@@ -105,6 +114,11 @@
       }
     },
     renderQuiz() {
+      document.body.classList.remove("checklist-expanded");
+      if (this.state.isChecklistExpanded) {
+        this.state.isChecklistExpanded = false;
+        this.resetChecklistEditing();
+      }
       this.ensureProfile();
       this.appEl.innerHTML = `
         <section class="card">
@@ -597,14 +611,67 @@
         </button>
       `;
       }).join("");
+      const isChecklistExpanded = Boolean(this.state.isChecklistExpanded);
+      const checklistOverlay = isChecklistExpanded
+        ? '<button type="button" class="checklist-overlay" data-action="collapse-checklist" aria-label="Свернуть чек лист"></button>'
+        : "";
+      const checklistContainerClasses = [
+        "dashboard-module",
+        "checklist",
+        isChecklistExpanded ? "checklist--expanded" : ""
+      ]
+        .filter(Boolean)
+        .join(" ");
+      const modulesClasses = [
+        "dashboard-modules",
+        isChecklistExpanded ? "dashboard-modules--checklist-expanded" : ""
+      ]
+        .filter(Boolean)
+        .join(" ");
+      const expandLabel = isChecklistExpanded ? "Свернуть чек лист" : "Развернуть чек лист";
+      const expandIcon = isChecklistExpanded ? "✕" : "⤢";
+      const checklistEditingId = this.state.checklistEditingId;
+      const checklistDraft = this.state.checklistEditingDraft || {};
       const checklistItems = (profile && Array.isArray(profile.checklist) ? profile.checklist : DEFAULT_CHECKLIST_ITEMS)
         .map((item, index) => {
-          const itemId = `check-${item.id || index}`;
+          const itemKey = this.getChecklistItemKey(item, index);
+          const itemId = `check-${itemKey}`;
           const checkedAttr = item.done ? "checked" : "";
+          const isEditingItem = checklistEditingId === itemKey;
+          if (isEditingItem) {
+            const draftTitle =
+              typeof checklistDraft.title === "string" && checklistEditingId === itemKey
+                ? checklistDraft.title
+                : item.title || "";
+            return `
+            <li class="checklist-item checklist-item--editing" data-task-id="${this.escapeHtml(itemKey)}">
+              <form class="checklist-item__edit" data-task-id="${this.escapeHtml(itemKey)}" data-prevent-expand>
+                <label for="checklist-edit-${this.escapeHtml(itemKey)}" class="sr-only">Название задачи</label>
+                <input id="checklist-edit-${this.escapeHtml(itemKey)}" type="text" name="title" value="${this.escapeHtml(draftTitle)}" required>
+                <div class="checklist-item__edit-actions">
+                  <button type="submit">Сохранить</button>
+                  <button type="button" class="secondary" data-action="cancel-checklist-edit">Отменить</button>
+                </div>
+              </form>
+            </li>
+          `;
+          }
           return `
-            <li class="checklist-item">
-              <input type="checkbox" id="${itemId}" data-task-id="${item.id}" ${checkedAttr}>
-              <label for="${itemId}">${item.title}</label>
+            <li class="checklist-item" data-task-id="${this.escapeHtml(itemKey)}">
+              <div class="checklist-item__main">
+                <input type="checkbox" id="${this.escapeHtml(itemId)}" data-task-id="${this.escapeHtml(itemKey)}" ${checkedAttr} data-prevent-expand>
+                <label for="${this.escapeHtml(itemId)}" data-prevent-expand>${this.escapeHtml(item.title || "")}</label>
+              </div>
+              <div class="checklist-item__actions" role="group" aria-label="Действия с задачей">
+                <button type="button" class="checklist-item__action" data-action="edit-checklist" data-task-id="${this.escapeHtml(itemKey)}" aria-label="Редактировать задачу">
+                  <span aria-hidden="true">✏️</span>
+                  <span class="sr-only">Редактировать</span>
+                </button>
+                <button type="button" class="checklist-item__action checklist-item__action--danger" data-action="delete-checklist" data-task-id="${this.escapeHtml(itemKey)}" aria-label="Удалить задачу">
+                  <span aria-hidden="true">🗑️</span>
+                  <span class="sr-only">Удалить</span>
+                </button>
+              </div>
             </li>
           `;
         })
@@ -705,15 +772,21 @@
             ${introBlock}
             ${daysBlock}
           </header>
-          <div class="dashboard-modules">
-            <section class="dashboard-module checklist" data-area="checklist" aria-labelledby="checklist-title">
+          <div class="${modulesClasses}">
+            ${checklistOverlay}
+            <section class="${checklistContainerClasses}" data-area="checklist" aria-labelledby="checklist-title" data-expanded="${isChecklistExpanded}">
               <div class="module-header">
                 <h2 id="checklist-title">Чек лист</h2>
+                <div class="module-header__actions">
+                  <button type="button" class="module-header__icon-button" data-action="toggle-checklist-expand" aria-label="${expandLabel}" aria-expanded="${isChecklistExpanded}">
+                    <span aria-hidden="true">${expandIcon}</span>
+                  </button>
+                </div>
               </div>
               <ul class="checklist-items">
                 ${checklistItems}
               </ul>
-              <form id="checklist-form" class="checklist-form">
+              <form id="checklist-form" class="checklist-form" data-prevent-expand>
                 <label for="checklist-input" class="sr-only">Новая задача</label>
                 <input id="checklist-input" type="text" name="task" placeholder="Добавить задачу" autocomplete="off" required>
                 <button type="submit">Добавить</button>
@@ -754,6 +827,7 @@
           </div>
         </section>
       `;
+      document.body.classList.toggle("checklist-expanded", this.state.isChecklistExpanded);
       this.bindDashboardEvents(previousTotal, totalBudget);
     },
     bindDashboardEvents(previousTotal, totalBudget) {
@@ -787,6 +861,82 @@
           this.addChecklistItem(value);
         });
       }
+      const checklistModule = this.appEl.querySelector(".dashboard-module.checklist");
+      if (checklistModule) {
+        checklistModule.addEventListener("click", (event) => {
+          if (event.target.closest("[data-prevent-expand], .checklist-item, .checklist-form")) {
+            return;
+          }
+          if (!this.state.isChecklistExpanded) {
+            this.expandChecklist();
+          }
+        });
+      }
+      const expandButton = this.appEl.querySelector('[data-action="toggle-checklist-expand"]');
+      if (expandButton) {
+        expandButton.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          this.toggleChecklistExpansion();
+        });
+      }
+      const checklistOverlayEl = this.appEl.querySelector(".checklist-overlay");
+      if (checklistOverlayEl) {
+        checklistOverlayEl.addEventListener("click", (event) => {
+          event.preventDefault();
+          this.collapseChecklist();
+        });
+      }
+      this.appEl.querySelectorAll(".checklist-item__action").forEach((button) => {
+        button.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const action = button.dataset.action;
+          const taskId = button.dataset.taskId;
+          if (!taskId) return;
+          if (action === "edit-checklist") {
+            this.startChecklistEdit(taskId);
+          } else if (action === "delete-checklist") {
+            this.deleteChecklistItem(taskId);
+          }
+        });
+      });
+      this.appEl.querySelectorAll(".checklist-item__edit").forEach((form) => {
+        form.addEventListener("submit", (event) => {
+          event.preventDefault();
+          const taskId = form.dataset.taskId;
+          if (!taskId) return;
+          const input = form.querySelector("input[name='title']");
+          if (!input) return;
+          const value = input.value.trim();
+          if (!value) {
+            input.focus();
+            return;
+          }
+          this.updateChecklistItem(taskId, value);
+        });
+        const input = form.querySelector("input[name='title']");
+        if (input) {
+          input.addEventListener("input", () => {
+            this.state.checklistEditingDraft = {
+              title: input.value
+            };
+          });
+          requestAnimationFrame(() => {
+            input.focus();
+            input.select();
+          });
+        }
+      });
+      this.appEl
+        .querySelectorAll('[data-action="cancel-checklist-edit"]')
+        .forEach((button) => {
+          button.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            this.cancelChecklistEdit();
+          });
+        });
       const budgetForm = document.getElementById("budget-form");
       if (budgetForm) {
         budgetForm.addEventListener("submit", (event) => {
@@ -892,16 +1042,110 @@
       }
       this.openModal(element);
     },
+    toggleChecklistExpansion() {
+      if (this.state.isChecklistExpanded) {
+        this.collapseChecklist();
+      } else {
+        this.expandChecklist();
+      }
+    },
+    expandChecklist() {
+      if (this.state.isChecklistExpanded) {
+        return;
+      }
+      this.state.isChecklistExpanded = true;
+      this.renderDashboard();
+    },
+    collapseChecklist() {
+      if (!this.state.isChecklistExpanded) {
+        return;
+      }
+      this.state.isChecklistExpanded = false;
+      this.resetChecklistEditing();
+      this.renderDashboard();
+    },
+    resetChecklistEditing() {
+      this.state.checklistEditingId = null;
+      this.state.checklistEditingDraft = null;
+    },
+    startChecklistEdit(taskId) {
+      if (!taskId) return;
+      const items = Array.isArray(this.state.profile?.checklist) ? this.state.profile.checklist : [];
+      let targetItem = null;
+      items.forEach((item, index) => {
+        const key = this.getChecklistItemKey(item, index);
+        if (!targetItem && key === taskId) {
+          targetItem = { ...item, id: key };
+        }
+      });
+      if (!targetItem) return;
+      this.state.checklistEditingId = taskId;
+      this.state.checklistEditingDraft = {
+        title: targetItem.title || ""
+      };
+      if (!this.state.isChecklistExpanded) {
+        this.state.isChecklistExpanded = true;
+      }
+      this.renderDashboard();
+    },
+    cancelChecklistEdit() {
+      this.resetChecklistEditing();
+      this.renderDashboard();
+    },
+    updateChecklistItem(taskId, title) {
+      const value = typeof title === "string" ? title.trim() : "";
+      if (!taskId || !value) {
+        return;
+      }
+      const current = Array.isArray(this.state.profile?.checklist) ? this.state.profile.checklist : [];
+      const next = current.map((item, index) => {
+        const key = this.getChecklistItemKey(item, index);
+        if (key === taskId) {
+          return {
+            ...item,
+            id: key,
+            title: value
+          };
+        }
+        if (item && item.id === key) {
+          return item;
+        }
+        return {
+          ...item,
+          id: key
+        };
+      });
+      this.resetChecklistEditing();
+      this.updateProfile({ checklist: next });
+      this.renderDashboard();
+    },
+    deleteChecklistItem(taskId) {
+      if (!taskId) return;
+      const current = Array.isArray(this.state.profile?.checklist) ? this.state.profile.checklist : [];
+      const next = current.filter((item, index) => this.getChecklistItemKey(item, index) !== taskId);
+      this.resetChecklistEditing();
+      this.updateProfile({ checklist: next });
+      this.renderDashboard();
+    },
     toggleChecklistItem(taskId, done) {
       const current = Array.isArray(this.state.profile?.checklist) ? this.state.profile.checklist : [];
-      const next = current.map((item) =>
-        item.id === taskId
-          ? {
-              ...item,
-              done: Boolean(done)
-            }
-          : item
-      );
+      const next = current.map((item, index) => {
+        const key = this.getChecklistItemKey(item, index);
+        if (key === taskId) {
+          return {
+            ...item,
+            id: key,
+            done: Boolean(done)
+          };
+        }
+        if (item && item.id === key) {
+          return item;
+        }
+        return {
+          ...item,
+          id: key
+        };
+      });
       this.updateProfile({ checklist: next });
     },
     addChecklistItem(title) {
@@ -914,6 +1158,7 @@
           done: false
         }
       ];
+      this.resetChecklistEditing();
       this.updateProfile({ checklist: next });
       this.renderDashboard();
     },
@@ -1087,6 +1332,12 @@
     formatCurrency(value) {
       const safeValue = Number.isFinite(value) ? value : 0;
       return `${currencyFormatter.format(Math.max(0, Math.round(safeValue)))}` + " ₽";
+    },
+    getChecklistItemKey(item, index) {
+      if (item && typeof item.id === "string" && item.id) {
+        return item.id;
+      }
+      return `task-${index}`;
     },
     escapeHtml(value) {
       return String(value ?? "")
