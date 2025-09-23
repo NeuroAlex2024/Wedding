@@ -42,7 +42,10 @@
       checklistFoldersCollapse: {},
       checklistFolderEditingId: null,
       checklistFolderEditingDraft: null,
-      checklistDragTaskId: null
+      checklistDragTaskId: null,
+      marketplaceCategoryId: Array.isArray(CONTRACTOR_MARKETPLACE) && CONTRACTOR_MARKETPLACE.length
+        ? CONTRACTOR_MARKETPLACE[0].id
+        : null
     },
     init() {
       this.cacheDom();
@@ -742,6 +745,7 @@
             })
             .join("")
         : '<p class="budget-empty">Добавьте статьи, чтобы увидеть распределение бюджета.</p>';
+      const marketplaceModule = this.renderMarketplaceModule(backgroundInertAttributes);
       this.appEl.innerHTML = `
         <section class="card dashboard">
           <nav class="dashboard-nav" aria-label="Основные разделы">
@@ -809,11 +813,119 @@
                 <button type="submit">Добавить расход</button>
               </form>
             </section>
+            ${marketplaceModule}
           </div>
         </section>
       `;
       document.body.classList.toggle("checklist-expanded", this.state.isChecklistExpanded);
       this.bindDashboardEvents(previousTotal, totalBudget);
+    },
+    renderMarketplaceModule(backgroundInertAttributes = "") {
+      const categories = Array.isArray(CONTRACTOR_MARKETPLACE) ? CONTRACTOR_MARKETPLACE : [];
+      if (!categories.length) {
+        return "";
+      }
+      let selectedId = this.state.marketplaceCategoryId;
+      if (!selectedId || !categories.some((category) => category && category.id === selectedId)) {
+        selectedId = categories[0]?.id || null;
+        this.state.marketplaceCategoryId = selectedId;
+      }
+      const categoriesMarkup = categories
+        .map((category) => {
+          if (!category || typeof category !== "object") {
+            return "";
+          }
+          const rawId = typeof category.id === "string" ? category.id : String(category.id || "");
+          if (!rawId) {
+            return "";
+          }
+          const safeId = this.escapeHtml(rawId);
+          const title = this.escapeHtml(category.title || "");
+          const contractorCount = Array.isArray(category.contractors) ? category.contractors.length : 0;
+          const formattedCount = currencyFormatter.format(contractorCount);
+          const isActive = category.id === selectedId;
+          return `
+            <button type="button" class="marketplace-category${isActive ? " marketplace-category--active" : ""}" data-category-id="${safeId}" aria-pressed="${isActive}" aria-controls="marketplace-panel-${safeId}">
+              <span class="marketplace-category__name">${title}</span>
+              <span class="marketplace-category__count">${this.escapeHtml(formattedCount)}</span>
+            </button>
+          `;
+        })
+        .join("");
+      const selectedCategory = categories.find((category) => category && category.id === selectedId) || categories[0];
+      const selectedSafeId = this.escapeHtml(selectedCategory?.id || "all");
+      const cardsMarkup = selectedCategory && Array.isArray(selectedCategory.contractors) && selectedCategory.contractors.length
+        ? selectedCategory.contractors
+            .map((contractor, index) => this.renderMarketplaceCard(contractor, selectedCategory, index))
+            .join("")
+        : '<p class="marketplace-empty">Скоро добавим подрядчиков в эту категорию.</p>';
+      return `
+        <section class="dashboard-module marketplace" data-area="marketplace" aria-labelledby="marketplace-title"${backgroundInertAttributes}>
+          <div class="module-header">
+            <h2 id="marketplace-title">Маркетплейс подрядчиков</h2>
+            <p>Выбирайте проверенных специалистов для свадьбы мечты.</p>
+          </div>
+          <div class="marketplace-content">
+            <nav class="marketplace-categories" aria-label="Категории подрядчиков">
+              ${categoriesMarkup}
+            </nav>
+            <div class="marketplace-cards" role="list" id="marketplace-panel-${selectedSafeId}">
+              ${cardsMarkup}
+            </div>
+          </div>
+        </section>
+      `;
+    },
+    renderMarketplaceCard(contractor, category, index) {
+      if (!contractor || typeof contractor !== "object") {
+        return "";
+      }
+      const fallbackName = `Подрядчик ${index + 1}`;
+      const rawName = typeof contractor.name === "string" && contractor.name.trim().length
+        ? contractor.name.trim()
+        : fallbackName;
+      const safeName = this.escapeHtml(rawName);
+      const priceValue = Number(contractor.price);
+      const price = Number.isFinite(priceValue) ? Math.max(0, Math.round(priceValue)) : 0;
+      const ratingValue = Number.parseFloat(contractor.rating);
+      const rating = Number.isFinite(ratingValue) ? ratingValue.toFixed(1) : "5.0";
+      const ratingLabel = `Средняя оценка ${rating} из 5`;
+      const reviewsValue = Number(contractor.reviews);
+      const reviews = Number.isFinite(reviewsValue) ? Math.max(0, Math.round(reviewsValue)) : 0;
+      const reviewsText = `${currencyFormatter.format(reviews)} оценок`;
+      const location = typeof contractor.location === "string" && contractor.location.trim().length
+        ? `<p class="marketplace-card__location">${this.escapeHtml(contractor.location)}</p>`
+        : "";
+      const description = typeof contractor.tagline === "string" && contractor.tagline.trim().length
+        ? `<p class="marketplace-card__description">${this.escapeHtml(contractor.tagline)}</p>`
+        : "";
+      const imageUrl = typeof contractor.image === "string" && contractor.image
+        ? contractor.image
+        : (Array.isArray(MARKETPLACE_IMAGES) && MARKETPLACE_IMAGES.length ? MARKETPLACE_IMAGES[0] : "");
+      const altBase = typeof contractor.imageAlt === "string" && contractor.imageAlt.trim().length
+        ? contractor.imageAlt
+        : `${rawName}${category?.title ? ` — ${category.title}` : ""}`;
+      const altText = this.escapeHtml(altBase);
+      return `
+        <article class="marketplace-card" role="listitem">
+          <div class="marketplace-card__image">
+            <img src="${this.escapeHtml(imageUrl)}" alt="${altText}">
+          </div>
+          <div class="marketplace-card__info">
+            <p class="marketplace-card__price"><strong>${this.formatCurrency(price)}</strong></p>
+            <h3 class="marketplace-card__title">${safeName}</h3>
+            <p class="marketplace-card__meta">
+              <span class="marketplace-card__rating" aria-label="${this.escapeHtml(ratingLabel)}">⭐${rating}</span>
+              <span class="marketplace-card__reviews">${this.escapeHtml(reviewsText)}</span>
+            </p>
+            ${location}
+            ${description}
+            <div class="marketplace-card__actions">
+              <button type="button" class="marketplace-card__action" data-action="marketplace-request" data-vendor-name="${this.escapeHtml(rawName)}">Забронировать</button>
+            </div>
+          </div>
+        </article>
+      `;
     },
     getChecklistCollections(profile) {
       const sourceProfile = profile || this.state.profile || {};
@@ -1306,6 +1418,22 @@
           titleInput.select();
         }
       }
+      this.appEl.querySelectorAll(".marketplace-category").forEach((button) => {
+        button.addEventListener("click", () => {
+          const categoryId = button.dataset.categoryId;
+          if (!categoryId || categoryId === this.state.marketplaceCategoryId) {
+            return;
+          }
+          this.state.marketplaceCategoryId = categoryId;
+          this.renderDashboard();
+        });
+      });
+      this.appEl.querySelectorAll('[data-action="marketplace-request"]').forEach((button) => {
+        button.addEventListener("click", () => {
+          const vendorName = button.dataset.vendorName || "";
+          this.showMarketplaceStub(vendorName, button);
+        });
+      });
       this.animateBudget(previousTotal, totalBudget);
     },
     getFocusableElements(container) {
@@ -2202,6 +2330,22 @@
       if (mod10 === 1 && mod100 !== 11) return "день";
       if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return "дня";
       return "дней";
+    },
+    showMarketplaceStub(vendorName, trigger) {
+      const safeName = this.escapeHtml(vendorName || "подрядчика");
+      this.state.modalOpen = true;
+      this.state.lastFocused = trigger || document.activeElement;
+      const titleEl = document.getElementById("modal-title");
+      if (titleEl) {
+        titleEl.textContent = "Скоро появится";
+      }
+      this.modalBody.innerHTML = `
+        <p>Скоро вы сможете связаться с <strong>${safeName}</strong> и оформить заказ прямо в Bridebook.</p>
+        <p class="modal-note">Мы уже собираем лучших подрядчиков и включим мгновенные бронирования в ближайшем обновлении.</p>
+      `;
+      this.modalOverlay.classList.add("active");
+      this.modalOverlay.setAttribute("aria-hidden", "false");
+      this.modalCloseBtn.focus();
     },
     openModal(card) {
       this.state.modalOpen = true;
