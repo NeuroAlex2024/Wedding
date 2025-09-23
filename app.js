@@ -1,6 +1,6 @@
 (function () {
   const storageKey = "wedding_profile_v1";
-  const allowedRoutes = ["#/quiz", "#/dashboard"];
+  const allowedRoutes = ["#/quiz", "#/dashboard", "#/invitation"];
   const monthNames = [
     "Январь",
     "Февраль",
@@ -19,6 +19,68 @@
   const currencyFormatter = new Intl.NumberFormat("ru-RU");
   const BUDGET_COLORS = ["#E07A8B", "#F4A259", "#5B8E7D", "#7A77B9", "#F1BF98", "#74D3AE"];
   const PROFILE_SCHEMA_VERSION = 2;
+  const INVITATION_STYLES = [
+    {
+      id: "blossom",
+      name: "Нежная классика",
+      description: "Пастельные тона и романтичная типографика",
+      palette: {
+        background: "linear-gradient(140deg, #fff7fb 0%, #ffeef3 100%)",
+        card: "rgba(255, 255, 255, 0.82)",
+        accent: "#d66a7a",
+        accentSoft: "rgba(214, 106, 122, 0.18)",
+        text: "#35272f",
+        subtitle: "#725661",
+        ornament: "rgba(214, 106, 122, 0.14)",
+        ribbon: "#f9dbe4"
+      }
+    },
+    {
+      id: "emerald",
+      name: "Садовые огни",
+      description: "Глубокая зелень и сияющие акценты",
+      palette: {
+        background: "linear-gradient(160deg, #f4fff7 0%, #e4f6ec 100%)",
+        card: "rgba(255, 255, 255, 0.88)",
+        accent: "#2f7d60",
+        accentSoft: "rgba(47, 125, 96, 0.18)",
+        text: "#1e3b32",
+        subtitle: "#2f7d60",
+        ornament: "rgba(47, 125, 96, 0.15)",
+        ribbon: "#d9f0e4"
+      }
+    },
+    {
+      id: "midnight",
+      name: "Полночные огни",
+      description: "Контраст тёмного неба и золотых искр",
+      palette: {
+        background: "linear-gradient(160deg, #10132b 0%, #1c1f3f 100%)",
+        card: "rgba(21, 24, 49, 0.8)",
+        accent: "#f4c77b",
+        accentSoft: "rgba(244, 199, 123, 0.12)",
+        text: "#ffffff",
+        subtitle: "#f4c77b",
+        ornament: "rgba(244, 199, 123, 0.2)",
+        ribbon: "rgba(244, 199, 123, 0.16)"
+      }
+    },
+    {
+      id: "sunset",
+      name: "Закат у моря",
+      description: "Тёплое солнце и свежий бриз",
+      palette: {
+        background: "linear-gradient(160deg, #fff4eb 0%, #ffe6d3 100%)",
+        card: "rgba(255, 255, 255, 0.86)",
+        accent: "#f07a3f",
+        accentSoft: "rgba(240, 122, 63, 0.16)",
+        text: "#402c1e",
+        subtitle: "#d56932",
+        ornament: "rgba(240, 122, 63, 0.14)",
+        ribbon: "#ffe0c9"
+      }
+    }
+  ];
 
   const App = {
     storageKey,
@@ -47,8 +109,10 @@
         ? CONTRACTOR_MARKETPLACE[0].id
         : null,
       marketplaceFavorites: new Set(),
-      marketplaceSelections: {}
+      marketplaceSelections: {},
+      invitationFormVisible: false
     },
+    invitationStyles: INVITATION_STYLES,
     init() {
       this.cacheDom();
       this.bindGlobalEvents();
@@ -112,6 +176,7 @@
         return;
       }
       this.state.currentRoute = hash;
+      this.state.invitationFormVisible = hash === "#/invitation";
       if (hash !== "#/quiz") {
         this.state.currentStep = 0;
       }
@@ -121,6 +186,9 @@
       switch (this.state.currentRoute) {
         case "#/quiz":
           this.renderQuiz();
+          break;
+        case "#/invitation":
+          this.renderInvitationBuilder();
           break;
         case "#/dashboard":
           this.renderDashboard();
@@ -652,7 +720,14 @@
         </button>
       `).join("");
       const toolsCards = DASHBOARD_TOOL_ITEMS.map((item) => {
-        const extraAttributes = item.id === "tools-test" ? ' data-tool-type="quiz"' : "";
+        const attributeList = [];
+        if (item.id === "tools-test") {
+          attributeList.push('data-tool-type="quiz"');
+        }
+        if (item.id === "tools-website") {
+          attributeList.push('data-tool-route="#/invitation"');
+        }
+        const extraAttributes = attributeList.length ? ` ${attributeList.join(" ")}` : "";
         return `
         <button type="button" class="tool-card" data-modal-target="${item.id}" data-title="${item.title}"${extraAttributes}>
           <span class="tool-card__title">${item.title}</span>
@@ -1330,6 +1405,638 @@
         </li>
       `;
     },
+    renderInvitationBuilder() {
+      this.ensureProfile();
+      const invitation = this.getInvitationData();
+      const activeStyle = this.getInvitationStyle(invitation.styleId);
+      const isComplete = this.isInvitationComplete(invitation);
+      const showForm = this.state.invitationFormVisible || !isComplete;
+      const previewMarkup = this.renderInvitationPreview(invitation, activeStyle);
+      const stylesMarkup = this.invitationStyles
+        .map((style) => {
+          const isActive = style.id === activeStyle.id;
+          const palette = style.palette || {};
+          const gradient = palette.background || "#ffffff";
+          const accent = palette.accent || "#000000";
+          return `
+            <button type="button" class="invitation-style${isActive ? " invitation-style--active" : ""}" data-style-id="${this.escapeHtml(style.id)}" aria-pressed="${isActive}">
+              <span class="invitation-style__preview" style="--style-preview: ${this.escapeHtml(gradient)}; --style-accent: ${this.escapeHtml(accent)}"></span>
+              <span class="invitation-style__meta">
+                <span class="invitation-style__name">${this.escapeHtml(style.name)}</span>
+                <span class="invitation-style__description">${this.escapeHtml(style.description)}</span>
+              </span>
+            </button>
+          `;
+        })
+        .join("");
+      const detailsMarkup = this.renderInvitationDetails(invitation);
+      const formOverlay = showForm ? this.renderInvitationForm(invitation) : "";
+      const completionHint = isComplete
+        ? ""
+        : '<p class="invitation-builder__hint">Заполните анкету, чтобы персонализировать приглашение и поделиться ссылкой с гостями.</p>';
+      this.appEl.innerHTML = `
+        <section class="invitation-builder">
+          <header class="invitation-builder__header">
+            <div class="invitation-builder__title">
+              <button type="button" class="secondary invitation-builder__back" data-action="back-to-dashboard">← Назад</button>
+              <div>
+                <h1>Сайт-приглашение</h1>
+                <p>Создайте красивое цифровое приглашение и поделитесь им с друзьями.</p>
+              </div>
+            </div>
+            <div class="invitation-builder__actions">
+              <button type="button" class="secondary" data-action="download-invitation">Сохранить PDF</button>
+              <button type="button" data-action="activate-invitation">Активировать сайт</button>
+            </div>
+          </header>
+          ${completionHint}
+          <div class="invitation-builder__layout">
+            <div class="invitation-builder__preview" id="invitation-preview">
+              ${previewMarkup}
+            </div>
+            <aside class="invitation-builder__sidebar">
+              <section class="invitation-styles">
+                <h2>Оформление</h2>
+                <p>Выберите настроение сайта — всё применится мгновенно.</p>
+                <div class="invitation-style-grid">
+                  ${stylesMarkup}
+                </div>
+              </section>
+              <section class="invitation-summary">
+                <div class="invitation-summary__header">
+                  <h2>Данные приглашения</h2>
+                  <button type="button" class="secondary" data-action="edit-invitation">Изменить</button>
+                </div>
+                ${detailsMarkup}
+              </section>
+            </aside>
+          </div>
+          ${formOverlay}
+        </section>
+      `;
+      this.bindInvitationBuilderEvents({ showForm });
+    },
+    bindInvitationBuilderEvents({ showForm }) {
+      const backButton = this.appEl.querySelector('[data-action="back-to-dashboard"]');
+      if (backButton) {
+        backButton.addEventListener("click", (event) => {
+          event.preventDefault();
+          location.hash = "#/dashboard";
+        });
+      }
+      const editButton = this.appEl.querySelector('[data-action="edit-invitation"]');
+      if (editButton) {
+        editButton.addEventListener("click", (event) => {
+          event.preventDefault();
+          this.state.invitationFormVisible = true;
+          this.renderInvitationBuilder();
+        });
+      }
+      this.appEl.querySelectorAll("[data-style-id]").forEach((button) => {
+        button.addEventListener("click", (event) => {
+          event.preventDefault();
+          const styleId = button.getAttribute("data-style-id");
+          this.handleInvitationStyleChange(styleId);
+        });
+      });
+      const downloadButton = this.appEl.querySelector('[data-action="download-invitation"]');
+      if (downloadButton) {
+        downloadButton.addEventListener("click", (event) => {
+          event.preventDefault();
+          this.handleInvitationDownload();
+        });
+      }
+      const activateButton = this.appEl.querySelector('[data-action="activate-invitation"]');
+      if (activateButton) {
+        activateButton.addEventListener("click", (event) => {
+          event.preventDefault();
+          this.handleInvitationPublish();
+        });
+      }
+      if (showForm) {
+        const form = document.getElementById("invitation-form");
+        if (form) {
+          form.addEventListener("submit", (event) => this.handleInvitationFormSubmit(event));
+          const closeButton = form.querySelector('[data-action="close-invitation-form"]');
+          if (closeButton) {
+            closeButton.addEventListener("click", (event) => {
+              event.preventDefault();
+              this.state.invitationFormVisible = false;
+              this.renderInvitationBuilder();
+            });
+          }
+        }
+      }
+    },
+    handleInvitationFormSubmit(event) {
+      event.preventDefault();
+      const form = event.currentTarget;
+      if (!form) return;
+      const formData = new FormData(form);
+      const data = {
+        groomName: this.normalizeInvitationInput(formData.get("groomName")),
+        brideName: this.normalizeInvitationInput(formData.get("brideName")),
+        weddingDate: this.normalizeInvitationInput(formData.get("weddingDate")),
+        weddingTime: this.normalizeInvitationInput(formData.get("weddingTime")),
+        venueName: this.normalizeInvitationInput(formData.get("venueName")),
+        venueAddress: this.normalizeInvitationInput(formData.get("venueAddress")),
+        giftCard: this.normalizeInvitationInput(formData.get("giftCard"))
+      };
+      const current = this.getInvitationData();
+      const next = {
+        ...current,
+        ...data
+      };
+      if (!next.styleId && this.invitationStyles.length) {
+        next.styleId = this.invitationStyles[0].id;
+      }
+      this.updateProfile({ invitation: next });
+      this.state.invitationFormVisible = false;
+      this.renderInvitationBuilder();
+    },
+    normalizeInvitationInput(value) {
+      if (typeof value === "string") {
+        return value.trim();
+      }
+      if (value == null) {
+        return "";
+      }
+      return String(value).trim();
+    },
+    getInvitationData() {
+      const profile = this.state.profile || {};
+      const stored = profile.invitation && typeof profile.invitation === "object" ? profile.invitation : {};
+      const defaultStyle = this.invitationStyles[0]?.id || "";
+      return {
+        groomName: stored.groomName || profile.groomName || "",
+        brideName: stored.brideName || profile.brideName || "",
+        weddingDate: stored.weddingDate || "",
+        weddingTime: stored.weddingTime || "",
+        venueName: stored.venueName || "",
+        venueAddress: stored.venueAddress || "",
+        giftCard: stored.giftCard || "",
+        styleId: stored.styleId || defaultStyle
+      };
+    },
+    getInvitationStyle(styleId) {
+      if (!Array.isArray(this.invitationStyles) || !this.invitationStyles.length) {
+        return {
+          id: "default",
+          name: "По умолчанию",
+          palette: {
+            background: "#ffffff",
+            card: "#ffffff",
+            accent: "#e07a8b",
+            accentSoft: "rgba(224, 122, 139, 0.16)",
+            text: "#2f2a3b",
+            subtitle: "#6e6781",
+            ornament: "rgba(224, 122, 139, 0.08)",
+            ribbon: "rgba(224, 122, 139, 0.12)"
+          }
+        };
+      }
+      const found = this.invitationStyles.find((style) => style.id === styleId);
+      return found || this.invitationStyles[0];
+    },
+    getInvitationThemeVariables(style) {
+      if (!style || typeof style !== "object") {
+        return "";
+      }
+      const palette = style.palette || {};
+      const entries = Object.entries(palette).map(([key, value]) => `--invitation-${this.toKebabCase(key)}: ${value};`);
+      return entries.join(" ");
+    },
+    toKebabCase(value) {
+      return String(value || "")
+        .replace(/([a-z])([A-Z])/g, "$1-$2")
+        .replace(/[_\s]+/g, "-")
+        .toLowerCase();
+    },
+    getInvitationCardMarkup(invitation, style) {
+      const themeVars = this.getInvitationThemeVariables(style);
+      const groomName = invitation.groomName || "Жених";
+      const brideName = invitation.brideName || "Невеста";
+      const dateLabel = this.formatInvitationDate(invitation.weddingDate) || "Укажите дату";
+      const timeLabel = this.formatInvitationTime(invitation.weddingTime) || "Укажите время";
+      const venueName = invitation.venueName || "Название площадки";
+      const venueAddress = invitation.venueAddress || "Адрес площадки";
+      const giftCard = invitation.giftCard ? this.formatGiftCard(invitation.giftCard) : "";
+      const initials = this.getInvitationInitials(invitation);
+      const hasGift = Boolean(giftCard);
+      return `
+        <article class="invitation-card" style="${themeVars}">
+          <div class="invitation-card__ornament" aria-hidden="true"></div>
+          <div class="invitation-card__inner">
+            <span class="invitation-card__badge">Свадебное приглашение</span>
+            <div class="invitation-card__initials" aria-hidden="true">${this.escapeHtml(initials)}</div>
+            <h2 class="invitation-card__names">${this.escapeHtml(groomName)} <span>&amp;</span> ${this.escapeHtml(brideName)}</h2>
+            <p class="invitation-card__subtitle">${this.escapeHtml(dateLabel)}</p>
+            <p class="invitation-card__time">${this.escapeHtml(timeLabel)}</p>
+            <div class="invitation-card__location">
+              <h3>${this.escapeHtml(venueName)}</h3>
+              <p>${this.escapeHtml(venueAddress)}</p>
+            </div>
+            <div class="invitation-card__divider" aria-hidden="true"></div>
+            <p class="invitation-card__note">Мы будем счастливы разделить этот день с вами.</p>
+            ${hasGift ? `<p class="invitation-card__gift"><span>Для подарков:</span> <strong>${this.escapeHtml(giftCard)}</strong></p>` : ""}
+          </div>
+          <div class="invitation-card__ribbon" aria-hidden="true"></div>
+        </article>
+      `;
+    },
+    renderInvitationPreview(invitation, style) {
+      const cardMarkup = this.getInvitationCardMarkup(invitation, style);
+      return `
+        <div class="invitation-preview-frame">
+          ${cardMarkup}
+        </div>
+      `;
+    },
+    renderInvitationDetails(invitation) {
+      const items = [
+        { label: "Жених", value: invitation.groomName || "Добавьте в анкете" },
+        { label: "Невеста", value: invitation.brideName || "Добавьте в анкете" },
+        { label: "Дата", value: this.formatInvitationDate(invitation.weddingDate) || "Укажите дату" },
+        { label: "Время", value: this.formatInvitationTime(invitation.weddingTime) || "Укажите время" },
+        { label: "Место", value: invitation.venueName || "Название площадки" },
+        { label: "Адрес", value: invitation.venueAddress || "Адрес площадки" },
+        { label: "Подарки", value: invitation.giftCard ? this.formatGiftCard(invitation.giftCard) : "Добавьте реквизиты" }
+      ];
+      const rows = items
+        .map((item) => `
+          <div class="invitation-details__item">
+            <dt>${this.escapeHtml(item.label)}</dt>
+            <dd>${this.escapeHtml(item.value)}</dd>
+          </div>
+        `)
+        .join("");
+      return `<dl class="invitation-details">${rows}</dl>`;
+    },
+    renderInvitationForm(invitation) {
+      return `
+        <div class="invitation-form-overlay" id="invitation-form-overlay" role="dialog" aria-modal="true" aria-labelledby="invitation-form-title">
+          <form class="invitation-form" id="invitation-form">
+            <h2 id="invitation-form-title">Анкета для приглашения</h2>
+            <p>Заполните информацию — мы сразу покажем, как будет выглядеть сайт-приглашение.</p>
+            <div class="invitation-form__grid">
+              <div class="invitation-form__field">
+                <label for="invitation-groom">Жених</label>
+                <input id="invitation-groom" name="groomName" type="text" required value="${this.escapeHtml(invitation.groomName)}" placeholder="Иван">
+              </div>
+              <div class="invitation-form__field">
+                <label for="invitation-bride">Невеста</label>
+                <input id="invitation-bride" name="brideName" type="text" required value="${this.escapeHtml(invitation.brideName)}" placeholder="Анна">
+              </div>
+              <div class="invitation-form__field">
+                <label for="invitation-date">Дата</label>
+                <input id="invitation-date" name="weddingDate" type="date" required value="${this.escapeHtml(invitation.weddingDate)}">
+              </div>
+              <div class="invitation-form__field">
+                <label for="invitation-time">Время</label>
+                <input id="invitation-time" name="weddingTime" type="time" required value="${this.escapeHtml(invitation.weddingTime)}">
+              </div>
+              <div class="invitation-form__field">
+                <label for="invitation-venue">Место (название)</label>
+                <input id="invitation-venue" name="venueName" type="text" required value="${this.escapeHtml(invitation.venueName)}" placeholder="Банкетный зал «Вдохновение»">
+              </div>
+              <div class="invitation-form__field invitation-form__field--wide">
+                <label for="invitation-address">Адрес</label>
+                <input id="invitation-address" name="venueAddress" type="text" required value="${this.escapeHtml(invitation.venueAddress)}" placeholder="Москва, Берёзовая аллея, 15">
+              </div>
+              <div class="invitation-form__field invitation-form__field--wide">
+                <label for="invitation-gift">Для денежных подарков (номер карты)</label>
+                <input id="invitation-gift" name="giftCard" type="text" required value="${this.escapeHtml(invitation.giftCard)}" inputmode="numeric" autocomplete="cc-number" placeholder="0000 0000 0000 0000">
+                <span class="invitation-form__hint">Мы аккуратно покажем номер карты в приглашении.</span>
+              </div>
+            </div>
+            <div class="invitation-form__actions">
+              <button type="button" class="secondary" data-action="close-invitation-form">Позже</button>
+              <button type="submit">Сохранить</button>
+            </div>
+          </form>
+        </div>
+      `;
+    },
+    isInvitationComplete(invitation) {
+      if (!invitation) return false;
+      const requiredFields = [
+        invitation.groomName,
+        invitation.brideName,
+        invitation.weddingDate,
+        invitation.weddingTime,
+        invitation.venueName,
+        invitation.venueAddress,
+        invitation.giftCard
+      ];
+      return requiredFields.every((value) => Boolean(this.normalizeInvitationInput(value)));
+    },
+    formatInvitationDate(rawDate) {
+      const value = this.normalizeInvitationInput(rawDate);
+      if (!value) return "";
+      const parts = value.split("-").map((part) => Number(part));
+      if (parts.length !== 3 || parts.some((part) => !Number.isFinite(part))) {
+        return value;
+      }
+      const [year, month, day] = parts;
+      if (!year || !month || !day) {
+        return value;
+      }
+      const monthName = monthNames[month - 1];
+      if (!monthName) {
+        return value;
+      }
+      const dayNumber = String(day);
+      const monthLabel = monthName.toLowerCase();
+      return `${dayNumber} ${monthLabel} ${year}`;
+    },
+    formatInvitationTime(rawTime) {
+      const value = this.normalizeInvitationInput(rawTime);
+      if (!value) return "";
+      const match = value.match(/^(\d{1,2})(?::(\d{1,2}))?$/);
+      if (!match) {
+        return value;
+      }
+      const hours = String(Math.min(23, Math.max(0, Number(match[1])))).padStart(2, "0");
+      const minutes = match[2] != null ? String(Math.min(59, Math.max(0, Number(match[2])))).padStart(2, "0") : "00";
+      return `${hours}:${minutes}`;
+    },
+    formatGiftCard(value) {
+      const raw = this.normalizeInvitationInput(value);
+      if (!raw) return "";
+      const digits = raw.replace(/[^0-9]/g, "");
+      if (digits.length >= 8) {
+        return digits.replace(/(.{4})/g, "$1 ").trim();
+      }
+      return raw;
+    },
+    getInvitationInitials(invitation) {
+      const makeInitial = (input) => {
+        const value = this.normalizeInvitationInput(input);
+        if (!value) return "";
+        return value.charAt(0).toUpperCase();
+      };
+      const parts = [makeInitial(invitation?.groomName), makeInitial(invitation?.brideName)].filter(Boolean);
+      if (parts.length === 2) {
+        return `${parts[0]} ❤ ${parts[1]}`;
+      }
+      if (parts.length === 1) {
+        return parts[0];
+      }
+      return "❤";
+    },
+    handleInvitationStyleChange(styleId) {
+      if (!styleId) return;
+      const nextStyle = this.invitationStyles.find((style) => style.id === styleId);
+      if (!nextStyle) return;
+      const current = this.getInvitationData();
+      if (current.styleId === nextStyle.id) {
+        return;
+      }
+      const next = {
+        ...current,
+        styleId: nextStyle.id
+      };
+      this.updateProfile({ invitation: next });
+      this.renderInvitationBuilder();
+    },
+    handleInvitationDownload() {
+      const invitation = this.getInvitationData();
+      if (!this.isInvitationComplete(invitation)) {
+        this.state.invitationFormVisible = true;
+        this.renderInvitationBuilder();
+        alert("Пожалуйста, заполните анкету, чтобы сохранить приглашение в PDF.");
+        return;
+      }
+      this.openInvitationWindow({ mode: "pdf" });
+    },
+    handleInvitationPublish() {
+      const invitation = this.getInvitationData();
+      if (!this.isInvitationComplete(invitation)) {
+        this.state.invitationFormVisible = true;
+        this.renderInvitationBuilder();
+        alert("Заполните анкету, чтобы активировать сайт-приглашение.");
+        return;
+      }
+      this.openInvitationWindow({ mode: "site" });
+    },
+    openInvitationWindow({ mode }) {
+      const invitation = this.getInvitationData();
+      const style = this.getInvitationStyle(invitation.styleId);
+      const html = this.buildInvitationPageHtml(invitation, style, { mode });
+      const target = window.open("", "_blank");
+      if (!target) {
+        alert("Похоже, всплывающее окно заблокировано. Разрешите открытие новых вкладок и попробуйте снова.");
+        return;
+      }
+      target.document.write(html);
+      target.document.close();
+      if (mode === "pdf") {
+        target.focus();
+        setTimeout(() => {
+          try {
+            target.print();
+          } catch (error) {
+            console.error("Не удалось запустить печать", error);
+          }
+        }, 350);
+      }
+    },
+    buildInvitationPageHtml(invitation, style, { mode } = {}) {
+      const pageTitle = `${invitation.groomName || "Жених"} & ${invitation.brideName || "Невеста"} — свадебное приглашение`;
+      const descriptionParts = [];
+      const formattedDate = this.formatInvitationDate(invitation.weddingDate);
+      if (formattedDate) descriptionParts.push(formattedDate);
+      const formattedTime = this.formatInvitationTime(invitation.weddingTime);
+      if (formattedTime) descriptionParts.push(formattedTime);
+      if (invitation.venueName) descriptionParts.push(invitation.venueName);
+      if (invitation.venueAddress) descriptionParts.push(invitation.venueAddress);
+      const metaDescription = descriptionParts.length ? descriptionParts.join(" • ") : "Свадебное приглашение";
+      const cardMarkup = this.getInvitationCardMarkup(invitation, style);
+      const footerNote = invitation.groomName && invitation.brideName
+        ? `${invitation.groomName} и ${invitation.brideName} ждут вас на празднике любви.`
+        : "Мы будем рады видеть вас на нашей свадьбе.";
+      const styles = this.getInvitationStandaloneStyles();
+      return `<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${this.escapeHtml(pageTitle)}</title>
+  <meta name="description" content="${this.escapeHtml(metaDescription)}">
+  <style>${styles}</style>
+</head>
+<body>
+  <main class="invitation-page">
+    <div class="invitation-page__wrapper">
+      ${cardMarkup}
+      <p class="invitation-page__footer">${this.escapeHtml(footerNote)}</p>
+    </div>
+  </main>
+</body>
+</html>`;
+    },
+    getInvitationStandaloneStyles() {
+      return `:root {
+  color-scheme: light;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  font-family: 'Playfair Display', 'Georgia', 'Times New Roman', serif;
+  background: linear-gradient(145deg, #f6f3f8 0%, #fdf7f9 100%);
+  color: #2f2a3b;
+}
+.invitation-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1.5rem 4rem;
+}
+.invitation-page__wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+.invitation-page__footer {
+  font-size: 1.1rem;
+  letter-spacing: 0.02em;
+  color: rgba(47, 42, 59, 0.72);
+  text-align: center;
+}
+.invitation-card {
+  position: relative;
+  width: min(560px, 90vw);
+  border-radius: 28px;
+  padding: 2.75rem 2.5rem 3.25rem;
+  background: var(--invitation-card, rgba(255, 255, 255, 0.85));
+  color: var(--invitation-text, #2f2a3b);
+  box-shadow: 0 30px 60px rgba(47, 42, 59, 0.18);
+  overflow: hidden;
+  backdrop-filter: blur(6px);
+}
+.invitation-card__ornament {
+  position: absolute;
+  inset: 0;
+  background: var(--invitation-background, linear-gradient(140deg, rgba(255, 247, 251, 0.95), rgba(255, 238, 243, 0.8)));
+  opacity: 1;
+  z-index: 0;
+}
+.invitation-card__ribbon {
+  position: absolute;
+  inset: auto 12% 0;
+  height: 120px;
+  background: var(--invitation-ribbon, rgba(224, 122, 139, 0.12));
+  z-index: 1;
+  filter: blur(0.5px);
+}
+.invitation-card__inner {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  display: grid;
+  gap: 1rem;
+}
+.invitation-card__badge {
+  align-self: start;
+  justify-self: center;
+  padding: 0.35rem 1.25rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  background: var(--invitation-accent-soft, rgba(224, 122, 139, 0.16));
+  color: var(--invitation-subtitle, #725661);
+}
+.invitation-card__initials {
+  font-size: 2.4rem;
+  color: var(--invitation-subtitle, #725661);
+  letter-spacing: 0.2em;
+}
+.invitation-card__names {
+  margin: 0;
+  font-size: clamp(2.4rem, 5vw, 3.4rem);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+.invitation-card__names span {
+  color: var(--invitation-accent, #d66a7a);
+}
+.invitation-card__subtitle {
+  margin: 0;
+  font-size: 1.25rem;
+  color: var(--invitation-subtitle, #725661);
+  letter-spacing: 0.05em;
+}
+.invitation-card__time {
+  margin: 0;
+  font-size: 1.1rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.invitation-card__location {
+  margin-top: 0.5rem;
+  display: grid;
+  gap: 0.35rem;
+}
+.invitation-card__location h3 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+.invitation-card__location p {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--invitation-subtitle, #725661);
+}
+.invitation-card__divider {
+  width: 60%;
+  height: 1px;
+  background: var(--invitation-ornament, rgba(214, 106, 122, 0.18));
+  justify-self: center;
+  margin: 0.75rem auto 0;
+}
+.invitation-card__note {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.invitation-card__gift {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--invitation-subtitle, #725661);
+}
+.invitation-card__gift span {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.75rem;
+  display: block;
+  margin-bottom: 0.25rem;
+}
+.invitation-card__gift strong {
+  font-size: 1.1rem;
+  color: var(--invitation-accent, #d66a7a);
+}
+@media print {
+  body {
+    background: #ffffff;
+  }
+  .invitation-page {
+    padding: 0;
+  }
+  .invitation-page__footer {
+    display: none;
+  }
+  .invitation-card {
+    box-shadow: none;
+    width: 100%;
+    max-width: none;
+    border-radius: 0;
+  }
+}
+`;
+    },
     bindDashboardEvents(previousTotal, totalBudget) {
       this.appEl.querySelectorAll("[data-modal-target]").forEach((element) => {
         element.addEventListener("click", (event) => this.handleModuleActivation(event, element));
@@ -1771,6 +2478,15 @@
       return value.replace(/['"\\]/g, "\\$&");
     },
     handleModuleActivation(event, element) {
+      const toolRoute = element?.dataset?.toolRoute;
+      if (toolRoute) {
+        if (event) {
+          event.preventDefault();
+        }
+        this.ensureProfile();
+        location.hash = toolRoute;
+        return;
+      }
       const toolType = element?.dataset?.toolType;
       if (toolType === "quiz") {
         if (event) {
