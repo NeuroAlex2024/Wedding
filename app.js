@@ -42,12 +42,18 @@
       checklistFoldersCollapse: {},
       checklistFolderEditingId: null,
       checklistFolderEditingDraft: null,
-      checklistDragTaskId: null
+      checklistDragTaskId: null,
+      marketplaceCategoryId: Array.isArray(CONTRACTOR_MARKETPLACE) && CONTRACTOR_MARKETPLACE.length
+        ? CONTRACTOR_MARKETPLACE[0].id
+        : null,
+      marketplaceFavorites: new Set(),
+      marketplaceSelections: {}
     },
     init() {
       this.cacheDom();
       this.bindGlobalEvents();
       this.state.profile = this.loadProfile();
+      this.syncMarketplaceFavoritesFromProfile(this.state.profile);
       const defaultRoute = "#/dashboard";
       if (location.hash === "#/welcome") {
         location.replace(defaultRoute);
@@ -96,6 +102,7 @@
     handleRouteChange() {
       const hash = location.hash || "#/dashboard";
       this.state.profile = this.loadProfile();
+      this.syncMarketplaceFavoritesFromProfile(this.state.profile);
       if (hash === "#/welcome") {
         location.replace("#/dashboard");
         return;
@@ -518,7 +525,8 @@
         updatedAt: now,
         checklist: DEFAULT_CHECKLIST_ITEMS.map((item) => ({ ...item })),
         checklistFolders: DEFAULT_CHECKLIST_FOLDERS.map((item) => ({ ...item })),
-        budgetEntries: DEFAULT_BUDGET_ENTRIES.map((item) => ({ ...item }))
+        budgetEntries: DEFAULT_BUDGET_ENTRIES.map((item) => ({ ...item })),
+        marketplaceFavorites: []
       };
       this.saveProfile(profile);
     },
@@ -568,6 +576,25 @@
           updated = true;
         }
         profile.budgetEntries = sanitizedBudget;
+      }
+      if (!Array.isArray(profile.marketplaceFavorites)) {
+        profile.marketplaceFavorites = [];
+        updated = true;
+      } else {
+        const normalizedFavorites = Array.from(
+          new Set(
+            profile.marketplaceFavorites
+              .filter((id) => typeof id === "string" && id.trim().length)
+              .map((id) => id.trim())
+          )
+        );
+        if (
+          normalizedFavorites.length !== profile.marketplaceFavorites.length ||
+          normalizedFavorites.some((id, index) => id !== profile.marketplaceFavorites[index])
+        ) {
+          profile.marketplaceFavorites = normalizedFavorites;
+          updated = true;
+        }
       }
       if (typeof profile.quizCompleted !== "boolean") {
         profile.quizCompleted = Boolean(
@@ -742,6 +769,7 @@
             })
             .join("")
         : '<p class="budget-empty">Добавьте статьи, чтобы увидеть распределение бюджета.</p>';
+      const marketplaceModule = this.renderMarketplaceModule(backgroundInertAttributes);
       this.appEl.innerHTML = `
         <section class="card dashboard">
           <nav class="dashboard-nav" aria-label="Основные разделы">
@@ -809,11 +837,269 @@
                 <button type="submit">Добавить расход</button>
               </form>
             </section>
+            ${marketplaceModule}
           </div>
         </section>
       `;
       document.body.classList.toggle("checklist-expanded", this.state.isChecklistExpanded);
       this.bindDashboardEvents(previousTotal, totalBudget);
+    },
+    renderMarketplaceModule(backgroundInertAttributes = "") {
+      const categories = Array.isArray(CONTRACTOR_MARKETPLACE) ? CONTRACTOR_MARKETPLACE : [];
+      if (!categories.length) {
+        return "";
+      }
+      const favoritesSet = this.state.marketplaceFavorites instanceof Set ? this.state.marketplaceFavorites : new Set();
+      const favoritesContractors = [];
+      categories.forEach((category) => {
+        if (!category || typeof category !== "object" || !Array.isArray(category.contractors)) {
+          return;
+        }
+        const categoryTitle = typeof category.title === "string" ? category.title : String(category.title || "");
+        category.contractors.forEach((contractor) => {
+          if (
+            contractor &&
+            typeof contractor === "object" &&
+            typeof contractor.id === "string" &&
+            favoritesSet.has(contractor.id)
+          ) {
+            favoritesContractors.push({
+              ...contractor,
+              categoryTitle
+            });
+          }
+        });
+      });
+      const favoritesCategory = {
+        id: "favorites",
+        title: "Избранное",
+        contractors: favoritesContractors
+      };
+      const allCategories = [favoritesCategory, ...categories];
+      let selectedId = this.state.marketplaceCategoryId;
+      const firstRegularCategoryId = categories[0]?.id || favoritesCategory.id;
+      if (!selectedId || !allCategories.some((category) => category && category.id === selectedId)) {
+        selectedId = firstRegularCategoryId;
+        this.state.marketplaceCategoryId = selectedId;
+      }
+      const visibleContractorsById = new Map();
+      const categoriesMarkup = allCategories
+        .map((category) => {
+          if (!category || typeof category !== "object") {
+            return "";
+          }
+          const rawId = typeof category.id === "string" ? category.id : String(category.id || "");
+          if (!rawId) {
+            return "";
+          }
+          const contractorsForCategory = rawId === "favorites"
+            ? favoritesContractors
+            : this.getRandomizedContractors(category);
+          const decoratedContractors = contractorsForCategory
+            .filter((contractor) => contractor && typeof contractor === "object")
+            .map((contractor) => ({
+              ...contractor,
+              categoryTitle:
+                typeof contractor.categoryTitle === "string" && contractor.categoryTitle.trim().length
+                  ? contractor.categoryTitle
+                  : category.title || ""
+            }));
+          visibleContractorsById.set(rawId, decoratedContractors);
+          const safeId = this.escapeHtml(rawId);
+          const title = this.escapeHtml(category.title || "");
+          const contractorCount = decoratedContractors.length;
+          const formattedCount = this.escapeHtml(currencyFormatter.format(contractorCount));
+          const isActive = rawId === selectedId;
+          const iconMarkup = rawId === "favorites"
+            ? '<span class="marketplace-category__icon" aria-hidden="true">❤️</span>'
+            : "";
+          return `
+            <button type="button" class="marketplace-category${isActive ? " marketplace-category--active" : ""}" data-category-id="${safeId}" aria-pressed="${isActive}" aria-controls="marketplace-panel-${safeId}">
+              <span class="marketplace-category__name">
+                ${iconMarkup}
+                <span class="marketplace-category__label">${title}</span>
+              </span>
+              <span class="marketplace-category__count">${formattedCount}</span>
+            </button>
+          `;
+        })
+        .join("");
+      const selectedCategory =
+        allCategories.find((category) => category && category.id === selectedId) || allCategories[0];
+      const selectedSafeId = this.escapeHtml(selectedCategory?.id || "all");
+      const selectedContractors = visibleContractorsById.get(selectedCategory?.id) || [];
+      const emptyMessage = selectedCategory?.id === "favorites"
+        ? '<p class="marketplace-empty marketplace-empty--favorites">Добавьте подрядчиков в избранное, чтобы увидеть их здесь.</p>'
+        : '<p class="marketplace-empty">Скоро добавим подрядчиков в эту категорию.</p>';
+      const cardsMarkup = selectedContractors.length
+        ? selectedContractors
+            .map((contractor, index) => this.renderMarketplaceCard(contractor, selectedCategory, index))
+            .join("")
+        : emptyMessage;
+      return `
+        <section class="dashboard-module marketplace" data-area="marketplace" aria-labelledby="marketplace-title"${backgroundInertAttributes}>
+          <div class="module-header">
+            <h2 id="marketplace-title">Маркетплейс подрядчиков</h2>
+            <p>Выбирайте проверенных специалистов для свадьбы мечты.</p>
+          </div>
+          <div class="marketplace-content">
+            <nav class="marketplace-categories" aria-label="Категории подрядчиков">
+              ${categoriesMarkup}
+            </nav>
+            <div class="marketplace-cards" role="list" id="marketplace-panel-${selectedSafeId}">
+              ${cardsMarkup}
+            </div>
+          </div>
+        </section>
+      `;
+    },
+    renderMarketplaceCard(contractor, category, index) {
+      if (!contractor || typeof contractor !== "object") {
+        return "";
+      }
+      const fallbackName = `Подрядчик ${index + 1}`;
+      const rawName = typeof contractor.name === "string" && contractor.name.trim().length
+        ? contractor.name.trim()
+        : fallbackName;
+      const safeName = this.escapeHtml(rawName);
+      const rawId = typeof contractor.id === "string" && contractor.id.trim().length
+        ? contractor.id.trim()
+        : `contractor-${index + 1}`;
+      const favoritesSet = this.state.marketplaceFavorites instanceof Set ? this.state.marketplaceFavorites : new Set();
+      const isFavorite = favoritesSet.has(rawId);
+      const favoriteLabel = isFavorite ? "Убрать из избранного" : "Добавить в избранное";
+      const priceValue = Number(contractor.price);
+      const price = Number.isFinite(priceValue) ? Math.max(0, Math.round(priceValue)) : 0;
+      const ratingValue = Number.parseFloat(contractor.rating);
+      const rating = Number.isFinite(ratingValue) ? ratingValue.toFixed(1) : "5.0";
+      const ratingLabel = `Средняя оценка ${rating} из 5`;
+      const reviewsValue = Number(contractor.reviews);
+      const reviews = Number.isFinite(reviewsValue) ? Math.max(0, Math.round(reviewsValue)) : 0;
+      const reviewsText = `${currencyFormatter.format(reviews)} оценок`;
+      const location = typeof contractor.location === "string" && contractor.location.trim().length
+        ? `<p class="marketplace-card__location">${this.escapeHtml(contractor.location)}</p>`
+        : "";
+      const description = typeof contractor.tagline === "string" && contractor.tagline.trim().length
+        ? `<p class="marketplace-card__description">${this.escapeHtml(contractor.tagline)}</p>`
+        : "";
+      const imageUrl = typeof contractor.image === "string" && contractor.image
+        ? contractor.image
+        : (Array.isArray(MARKETPLACE_IMAGES) && MARKETPLACE_IMAGES.length ? MARKETPLACE_IMAGES[0] : "");
+      const categoryTitle = typeof contractor.categoryTitle === "string" && contractor.categoryTitle.trim().length
+        ? contractor.categoryTitle.trim()
+        : category?.title || "";
+      const altBase = typeof contractor.imageAlt === "string" && contractor.imageAlt.trim().length
+        ? contractor.imageAlt
+        : `${rawName}${categoryTitle ? ` — ${categoryTitle}` : ""}`;
+      const altText = this.escapeHtml(altBase);
+      const phoneValue = typeof contractor.phone === "string" && contractor.phone.trim().length
+        ? contractor.phone.trim()
+        : "+7 (999) 867 17 49";
+      const safePhone = this.escapeHtml(phoneValue);
+      const safeIdAttr = this.escapeHtml(rawId);
+      return `
+        <article class="marketplace-card" role="listitem">
+          <div class="marketplace-card__image">
+            <img src="${this.escapeHtml(imageUrl)}" alt="${altText}">
+            <button type="button" class="marketplace-card__favorite" data-action="marketplace-favorite" data-vendor-id="${safeIdAttr}" aria-pressed="${isFavorite}" aria-label="${this.escapeHtml(favoriteLabel)}" title="${this.escapeHtml(favoriteLabel)}">
+              <span class="marketplace-card__favorite-icon" aria-hidden="true">${isFavorite ? "❤️" : "♡"}</span>
+            </button>
+          </div>
+          <div class="marketplace-card__info">
+            <p class="marketplace-card__price"><strong>${this.formatCurrency(price)}</strong></p>
+            <h3 class="marketplace-card__title">${safeName}</h3>
+            <p class="marketplace-card__meta">
+              <span class="marketplace-card__rating" aria-label="${this.escapeHtml(ratingLabel)}">⭐${rating}</span>
+              <span class="marketplace-card__reviews">${this.escapeHtml(reviewsText)}</span>
+            </p>
+            ${location}
+            ${description}
+            <div class="marketplace-card__actions">
+              <button type="button" class="marketplace-card__action marketplace-card__action--phone" data-action="marketplace-phone" data-vendor-name="${this.escapeHtml(rawName)}" data-vendor-phone="${safePhone}">Показать телефон</button>
+            </div>
+          </div>
+        </article>
+      `;
+    },
+    getRandomizedContractors(category) {
+      if (!category || typeof category !== "object") {
+        return [];
+      }
+      const rawId = typeof category.id === "string" ? category.id : String(category.id || "");
+      if (!rawId) {
+        return [];
+      }
+      if (!this.state.marketplaceSelections || typeof this.state.marketplaceSelections !== "object") {
+        this.state.marketplaceSelections = {};
+      }
+      const store = this.state.marketplaceSelections;
+      const contractors = Array.isArray(category.contractors) ? category.contractors : [];
+      if (!contractors.length) {
+        store[rawId] = [];
+        return [];
+      }
+      const idToContractor = new Map();
+      contractors.forEach((contractor) => {
+        if (contractor && typeof contractor === "object" && typeof contractor.id === "string") {
+          idToContractor.set(contractor.id, contractor);
+        }
+      });
+      const existingIds = Array.isArray(store[rawId]) ? store[rawId] : [];
+      if (existingIds.length) {
+        const filteredIds = existingIds.filter((id) => idToContractor.has(id));
+        if (filteredIds.length !== existingIds.length) {
+          store[rawId] = filteredIds;
+        }
+        if (filteredIds.length) {
+          return filteredIds.map((id) => idToContractor.get(id)).filter(Boolean);
+        }
+      }
+      const maxVisible = Math.min(6, contractors.length);
+      const minVisible = Math.min(3, contractors.length);
+      const count = this.getRandomIntInclusive(minVisible, maxVisible);
+      const shuffled = contractors.slice().sort(() => Math.random() - 0.5);
+      const selected = shuffled.slice(0, count);
+      const selectedIds = selected
+        .map((contractor) => (contractor && typeof contractor.id === "string" ? contractor.id : null))
+        .filter((id) => id && idToContractor.has(id));
+      store[rawId] = selectedIds;
+      return selectedIds.map((id) => idToContractor.get(id)).filter(Boolean);
+    },
+    getRandomIntInclusive(min, max) {
+      const lower = Number.isFinite(min) ? Math.ceil(min) : 0;
+      const upper = Number.isFinite(max) ? Math.floor(max) : lower;
+      if (upper <= lower) {
+        return Math.max(0, lower);
+      }
+      return Math.floor(Math.random() * (upper - lower + 1)) + lower;
+    },
+    toggleMarketplaceFavorite(vendorId) {
+      const id = typeof vendorId === "string" ? vendorId.trim() : "";
+      if (!id) {
+        return;
+      }
+      const currentFavorites = this.state.marketplaceFavorites instanceof Set
+        ? new Set(this.state.marketplaceFavorites)
+        : new Set();
+      if (currentFavorites.has(id)) {
+        currentFavorites.delete(id);
+      } else {
+        currentFavorites.add(id);
+      }
+      this.state.marketplaceFavorites = currentFavorites;
+      const favoritesArray = Array.from(currentFavorites);
+      this.updateProfile({ marketplaceFavorites: favoritesArray });
+      if (this.state.currentRoute === "#/dashboard") {
+        this.renderDashboard();
+      }
+    },
+    syncMarketplaceFavoritesFromProfile(profile = this.state.profile) {
+      const favorites = Array.isArray(profile?.marketplaceFavorites)
+        ? profile.marketplaceFavorites
+            .filter((id) => typeof id === "string" && id.trim().length)
+            .map((id) => id.trim())
+        : [];
+      this.state.marketplaceFavorites = new Set(favorites);
     },
     getChecklistCollections(profile) {
       const sourceProfile = profile || this.state.profile || {};
@@ -1306,6 +1592,29 @@
           titleInput.select();
         }
       }
+      this.appEl.querySelectorAll(".marketplace-category").forEach((button) => {
+        button.addEventListener("click", () => {
+          const categoryId = button.dataset.categoryId;
+          if (!categoryId || categoryId === this.state.marketplaceCategoryId) {
+            return;
+          }
+          this.state.marketplaceCategoryId = categoryId;
+          this.renderDashboard();
+        });
+      });
+      this.appEl.querySelectorAll('[data-action="marketplace-phone"]').forEach((button) => {
+        button.addEventListener("click", () => {
+          const vendorName = button.dataset.vendorName || "";
+          const phone = button.dataset.vendorPhone || "";
+          this.showMarketplaceContact(vendorName, phone, button);
+        });
+      });
+      this.appEl.querySelectorAll('[data-action="marketplace-favorite"]').forEach((button) => {
+        button.addEventListener("click", () => {
+          const vendorId = button.dataset.vendorId || "";
+          this.toggleMarketplaceFavorite(vendorId);
+        });
+      });
       this.animateBudget(previousTotal, totalBudget);
     },
     getFocusableElements(container) {
@@ -2203,6 +2512,48 @@
       if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return "дня";
       return "дней";
     },
+    formatPhoneLink(phone) {
+      if (typeof phone !== "string") {
+        return "+79998671749";
+      }
+      const digits = phone.replace(/\D+/g, "");
+      if (!digits) {
+        return "+79998671749";
+      }
+      if (digits.startsWith("7")) {
+        return `+${digits}`;
+      }
+      if (digits.startsWith("8") && digits.length === 11) {
+        return `+7${digits.slice(1)}`;
+      }
+      if (digits.startsWith("00")) {
+        return `+${digits.slice(2)}`;
+      }
+      return digits.startsWith("+") ? digits : `+${digits}`;
+    },
+    showMarketplaceContact(vendorName, phone, trigger) {
+      const safeName = this.escapeHtml(vendorName || "подрядчика");
+      const displayPhone = typeof phone === "string" && phone.trim().length ? phone.trim() : "+7 (999) 867 17 49";
+      const safePhone = this.escapeHtml(displayPhone);
+      const phoneHref = this.escapeHtml(this.formatPhoneLink(displayPhone));
+      this.state.modalOpen = true;
+      this.state.lastFocused = trigger || document.activeElement;
+      const titleEl = document.getElementById("modal-title");
+      if (titleEl) {
+        titleEl.textContent = "Контакты подрядчика";
+      }
+      this.modalBody.innerHTML = `
+        <p>Свяжитесь с <strong>${safeName}</strong> и обсудите детали свадьбы.</p>
+        <p class="modal-phone">
+          <span class="modal-phone__label">Телефон</span>
+          <a class="modal-phone__value" href="tel:${phoneHref}">${safePhone}</a>
+        </p>
+        <p class="modal-note">Позвоните и расскажите подрядчику о вашем празднике.</p>
+      `;
+      this.modalOverlay.classList.add("active");
+      this.modalOverlay.setAttribute("aria-hidden", "false");
+      this.modalCloseBtn.focus();
+    },
     openModal(card) {
       this.state.modalOpen = true;
       this.state.lastFocused = card || document.activeElement;
@@ -2316,6 +2667,7 @@
       try {
         localStorage.setItem(this.storageKey, JSON.stringify(profile));
         this.state.profile = profile;
+        this.syncMarketplaceFavoritesFromProfile(profile);
       } catch (error) {
         console.error("Не удалось сохранить профиль", error);
       }
@@ -2333,6 +2685,8 @@
     clearProfile() {
       localStorage.removeItem(this.storageKey);
       this.state.profile = null;
+      this.state.marketplaceFavorites = new Set();
+      this.state.marketplaceSelections = {};
     }
   };
 
