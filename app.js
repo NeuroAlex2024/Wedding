@@ -42,7 +42,12 @@
       checklistFoldersCollapse: {},
       checklistFolderEditingId: null,
       checklistFolderEditingDraft: null,
-      checklistDragTaskId: null
+      checklistDragTaskId: null,
+      marketplaceCategoryId: Array.isArray(CONTRACTOR_MARKETPLACE) && CONTRACTOR_MARKETPLACE.length
+        ? CONTRACTOR_MARKETPLACE[0].id
+        : null,
+      marketplaceFavorites: [],
+      pendingMarketplaceFocus: null
     },
     init() {
       this.cacheDom();
@@ -742,6 +747,7 @@
             })
             .join("")
         : '<p class="budget-empty">Добавьте статьи, чтобы увидеть распределение бюджета.</p>';
+      const marketplaceModule = this.renderMarketplaceModule(backgroundInertAttributes);
       this.appEl.innerHTML = `
         <section class="card dashboard">
           <nav class="dashboard-nav" aria-label="Основные разделы">
@@ -809,11 +815,303 @@
                 <button type="submit">Добавить расход</button>
               </form>
             </section>
+            ${marketplaceModule}
           </div>
         </section>
       `;
       document.body.classList.toggle("checklist-expanded", this.state.isChecklistExpanded);
       this.bindDashboardEvents(previousTotal, totalBudget);
+    },
+    renderMarketplaceModule(backgroundInertAttributes = "") {
+      const categories = Array.isArray(CONTRACTOR_MARKETPLACE) ? CONTRACTOR_MARKETPLACE : [];
+      if (!categories.length) {
+        return "";
+      }
+      let selectedId = this.state.marketplaceCategoryId;
+      const favoritesEntries = this.getMarketplaceFavoriteContractors();
+      const hasSelectedCategory = categories.some((category) => category && category.id === selectedId);
+      if (selectedId !== "favorites" && (!selectedId || !hasSelectedCategory)) {
+        selectedId = categories[0]?.id || null;
+        this.state.marketplaceCategoryId = selectedId;
+      }
+      const isFavoritesSelected = selectedId === "favorites";
+      const favoritesMarkup = (() => {
+        const favoritesCountFormatted = currencyFormatter.format(favoritesEntries.length);
+        const isActive = isFavoritesSelected;
+        return `
+          <button type="button" class="marketplace-category marketplace-category--favorites${isActive ? " marketplace-category--active" : ""}" data-category-id="favorites" aria-pressed="${isActive}" aria-controls="marketplace-panel-favorites">
+            <span class="marketplace-category__label">
+              <span class="marketplace-category__icon" aria-hidden="true">❤</span>
+              <span class="marketplace-category__name">Избранное</span>
+            </span>
+            <span class="marketplace-category__count">${this.escapeHtml(favoritesCountFormatted)}</span>
+          </button>
+        `;
+      })();
+      const categoriesMarkup = [
+        favoritesMarkup,
+        ...categories.map((category) => {
+          if (!category || typeof category !== "object") {
+            return "";
+          }
+          const rawId = typeof category.id === "string" ? category.id : String(category.id || "");
+          if (!rawId) {
+            return "";
+          }
+          const safeId = this.escapeHtml(rawId);
+          const title = this.escapeHtml(category.title || "");
+          const contractorCount = Array.isArray(category.contractors) ? category.contractors.length : 0;
+          const formattedCount = currencyFormatter.format(contractorCount);
+          const isActive = category.id === selectedId;
+          return `
+            <button type="button" class="marketplace-category${isActive ? " marketplace-category--active" : ""}" data-category-id="${safeId}" aria-pressed="${isActive}" aria-controls="marketplace-panel-${safeId}">
+              <span class="marketplace-category__label">
+                <span class="marketplace-category__name">${title}</span>
+              </span>
+              <span class="marketplace-category__count">${this.escapeHtml(formattedCount)}</span>
+            </button>
+          `;
+        })
+      ]
+        .filter(Boolean)
+        .join("");
+      let selectedCategory = null;
+      if (!isFavoritesSelected) {
+        selectedCategory = categories.find((category) => category && category.id === selectedId) || categories[0];
+        if (selectedCategory && selectedCategory.id !== selectedId) {
+          selectedId = selectedCategory.id;
+          this.state.marketplaceCategoryId = selectedId;
+        }
+      }
+      const selectedSafeId = this.escapeHtml(isFavoritesSelected ? "favorites" : selectedCategory?.id || "all");
+      let cardsMarkup = "";
+      if (isFavoritesSelected) {
+        cardsMarkup = favoritesEntries.length
+          ? favoritesEntries
+              .map(({ contractor, category }, index) => this.renderMarketplaceCard(contractor, category, index))
+              .join("")
+          : '<p class="marketplace-empty marketplace-empty--favorites">Добавляйте подрядчиков в избранное, нажав на сердечко в карточке.</p>';
+      } else if (selectedCategory && Array.isArray(selectedCategory.contractors)) {
+        const subset = this.getMarketplaceRandomSubset(selectedCategory.contractors);
+        cardsMarkup = subset.length
+          ? subset.map((contractor, index) => this.renderMarketplaceCard(contractor, selectedCategory, index)).join("")
+          : '<p class="marketplace-empty">Скоро добавим подрядчиков в эту категорию.</p>';
+      } else {
+        cardsMarkup = '<p class="marketplace-empty">Скоро добавим подрядчиков в эту категорию.</p>';
+      }
+      return `
+        <section class="dashboard-module marketplace" data-area="marketplace" aria-labelledby="marketplace-title"${backgroundInertAttributes}>
+          <div class="module-header">
+            <h2 id="marketplace-title">Маркетплейс подрядчиков</h2>
+            <p>Выбирайте проверенных специалистов для свадьбы мечты.</p>
+          </div>
+          <div class="marketplace-content">
+            <nav class="marketplace-categories" aria-label="Категории подрядчиков">
+              ${categoriesMarkup}
+            </nav>
+            <div class="marketplace-cards" role="list" id="marketplace-panel-${selectedSafeId}">
+              ${cardsMarkup}
+            </div>
+          </div>
+        </section>
+      `;
+    },
+    renderMarketplaceCard(contractor, category, index) {
+      if (!contractor || typeof contractor !== "object") {
+        return "";
+      }
+      const fallbackName = `Подрядчик ${index + 1}`;
+      const rawName = typeof contractor.name === "string" && contractor.name.trim().length
+        ? contractor.name.trim()
+        : fallbackName;
+      const safeName = this.escapeHtml(rawName);
+      const vendorId = typeof contractor.id === "string" && contractor.id.trim().length
+        ? contractor.id.trim()
+        : rawName;
+      const safeVendorId = this.escapeHtml(vendorId);
+      const isFavorite = this.isMarketplaceFavorite(vendorId);
+      const favoriteLabel = isFavorite ? "Убрать из избранного" : "Добавить в избранное";
+      const priceValue = Number(contractor.price);
+      const price = Number.isFinite(priceValue) ? Math.max(0, Math.round(priceValue)) : 0;
+      const ratingValue = Number.parseFloat(contractor.rating);
+      const rating = Number.isFinite(ratingValue) ? ratingValue.toFixed(1) : "5.0";
+      const ratingLabel = `Средняя оценка ${rating} из 5`;
+      const reviewsValue = Number(contractor.reviews);
+      const reviews = Number.isFinite(reviewsValue) ? Math.max(0, Math.round(reviewsValue)) : 0;
+      const reviewsText = `${currencyFormatter.format(reviews)} оценок`;
+      const location = typeof contractor.location === "string" && contractor.location.trim().length
+        ? `<p class="marketplace-card__location">${this.escapeHtml(contractor.location)}</p>`
+        : "";
+      const description = typeof contractor.tagline === "string" && contractor.tagline.trim().length
+        ? `<p class="marketplace-card__description">${this.escapeHtml(contractor.tagline)}</p>`
+        : "";
+      const imageUrl = typeof contractor.image === "string" && contractor.image
+        ? contractor.image
+        : (Array.isArray(MARKETPLACE_IMAGES) && MARKETPLACE_IMAGES.length ? MARKETPLACE_IMAGES[0] : "");
+      const altBase = typeof contractor.imageAlt === "string" && contractor.imageAlt.trim().length
+        ? contractor.imageAlt
+        : `${rawName}${category?.title ? ` — ${category.title}` : ""}`;
+      const altText = this.escapeHtml(altBase);
+      return `
+        <article class="marketplace-card" role="listitem">
+          <div class="marketplace-card__image">
+            <img src="${this.escapeHtml(imageUrl)}" alt="${altText}">
+            <button type="button" class="marketplace-card__favorite${isFavorite ? " is-active" : ""}" data-action="marketplace-favorite" data-vendor-id="${safeVendorId}" aria-pressed="${isFavorite}" title="${this.escapeHtml(favoriteLabel)}">
+              <span aria-hidden="true">${isFavorite ? "❤️" : "♡"}</span>
+              <span class="sr-only">${this.escapeHtml(favoriteLabel)}</span>
+            </button>
+          </div>
+          <div class="marketplace-card__info">
+            <p class="marketplace-card__price"><strong>${this.formatCurrency(price)}</strong></p>
+            <h3 class="marketplace-card__title">${safeName}</h3>
+            <p class="marketplace-card__meta">
+              <span class="marketplace-card__rating" aria-label="${this.escapeHtml(ratingLabel)}">⭐${rating}</span>
+              <span class="marketplace-card__reviews">${this.escapeHtml(reviewsText)}</span>
+            </p>
+            ${location}
+            ${description}
+            <div class="marketplace-card__actions">
+              <button type="button" class="marketplace-card__action" data-action="marketplace-phone" data-vendor-name="${this.escapeHtml(rawName)}" data-vendor-id="${safeVendorId}">Показать телефон</button>
+            </div>
+          </div>
+        </article>
+      `;
+    },
+    getMarketplaceFavoriteContractors() {
+      const favorites = Array.isArray(this.state.marketplaceFavorites) ? this.state.marketplaceFavorites : [];
+      if (!favorites.length) {
+        return [];
+      }
+      return favorites
+        .map((vendorId) => this.getMarketplaceVendorById(vendorId))
+        .filter((entry) => entry && entry.contractor && entry.category);
+    },
+    getMarketplaceVendorById(vendorId) {
+      const id = typeof vendorId === "string" ? vendorId.trim() : "";
+      if (!id || !Array.isArray(CONTRACTOR_MARKETPLACE)) {
+        return null;
+      }
+      for (const category of CONTRACTOR_MARKETPLACE) {
+        if (!category || !Array.isArray(category.contractors)) {
+          continue;
+        }
+        for (const contractor of category.contractors) {
+          if (!contractor || typeof contractor !== "object") {
+            continue;
+          }
+          const contractorId = typeof contractor.id === "string" ? contractor.id.trim() : "";
+          if (contractorId && contractorId === id) {
+            return { contractor, category };
+          }
+        }
+      }
+      return null;
+    },
+    getMarketplaceRandomSubset(contractors) {
+      if (!Array.isArray(contractors)) {
+        return [];
+      }
+      const normalized = contractors.filter((item) => item && typeof item === "object");
+      if (!normalized.length) {
+        return [];
+      }
+      if (normalized.length <= 3) {
+        return normalized.slice();
+      }
+      const minCount = Math.min(3, normalized.length);
+      const maxCount = Math.min(6, normalized.length);
+      const count = this.getRandomInt(minCount, maxCount);
+      return this.getRandomSample(normalized, count);
+    },
+    getRandomInt(min, max) {
+      const minValue = Math.ceil(Number(min));
+      const maxValue = Math.floor(Number(max));
+      if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) {
+        return 0;
+      }
+      if (maxValue < minValue) {
+        return minValue;
+      }
+      return Math.floor(Math.random() * (maxValue - minValue + 1)) + minValue;
+    },
+    getRandomSample(items, count) {
+      if (!Array.isArray(items)) {
+        return [];
+      }
+      const maxCount = Math.max(0, Math.min(Number(count), items.length));
+      if (!maxCount) {
+        return [];
+      }
+      const copy = items.slice();
+      for (let i = copy.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy.slice(0, maxCount);
+    },
+    isMarketplaceFavorite(vendorId) {
+      const id = typeof vendorId === "string" ? vendorId.trim() : "";
+      if (!id) {
+        return false;
+      }
+      const favorites = Array.isArray(this.state.marketplaceFavorites) ? this.state.marketplaceFavorites : [];
+      return favorites.includes(id);
+    },
+    toggleMarketplaceFavorite(vendorId) {
+      const id = typeof vendorId === "string" ? vendorId.trim() : "";
+      if (!id) {
+        return;
+      }
+      const favorites = Array.isArray(this.state.marketplaceFavorites) ? this.state.marketplaceFavorites.slice() : [];
+      const index = favorites.indexOf(id);
+      if (index >= 0) {
+        favorites.splice(index, 1);
+      } else {
+        favorites.push(id);
+      }
+      this.state.marketplaceFavorites = favorites;
+      this.state.pendingMarketplaceFocus = { type: "favorite", id };
+      this.renderDashboard();
+    },
+    restoreMarketplaceFocus() {
+      const pending = this.state.pendingMarketplaceFocus;
+      if (!pending) {
+        return;
+      }
+      this.state.pendingMarketplaceFocus = null;
+      if (pending.type === "favorite" && pending.id) {
+        const selectorId = this.escapeSelector(pending.id);
+        if (!selectorId) {
+          return;
+        }
+        const button = this.appEl.querySelector(`[data-action="marketplace-favorite"][data-vendor-id="${selectorId}"]`);
+        if (button && typeof button.focus === "function") {
+          button.focus();
+        }
+      }
+    },
+    escapeSelector(value) {
+      if (typeof value !== "string") {
+        return "";
+      }
+      if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
+        return CSS.escape(value);
+      }
+      return value.replace(/([^a-zA-Z0-9_-])/g, "\\$1");
+    },
+    formatPhoneHref(phone) {
+      if (typeof phone !== "string") {
+        return "";
+      }
+      const trimmed = phone.trim();
+      if (!trimmed) {
+        return "";
+      }
+      const digits = trimmed.replace(/\D+/g, "");
+      if (!digits) {
+        return "";
+      }
+      return trimmed.startsWith("+") ? `+${digits}` : digits;
     },
     getChecklistCollections(profile) {
       const sourceProfile = profile || this.state.profile || {};
@@ -1306,7 +1604,30 @@
           titleInput.select();
         }
       }
+      this.appEl.querySelectorAll(".marketplace-category").forEach((button) => {
+        button.addEventListener("click", () => {
+          const categoryId = button.dataset.categoryId;
+          if (!categoryId || categoryId === this.state.marketplaceCategoryId) {
+            return;
+          }
+          this.state.marketplaceCategoryId = categoryId;
+          this.renderDashboard();
+        });
+      });
+      this.appEl.querySelectorAll('[data-action="marketplace-phone"]').forEach((button) => {
+        button.addEventListener("click", () => {
+          const vendorName = button.dataset.vendorName || "";
+          this.showMarketplacePhone(vendorName, button);
+        });
+      });
+      this.appEl.querySelectorAll('[data-action="marketplace-favorite"]').forEach((button) => {
+        button.addEventListener("click", () => {
+          const vendorId = button.dataset.vendorId || "";
+          this.toggleMarketplaceFavorite(vendorId);
+        });
+      });
       this.animateBudget(previousTotal, totalBudget);
+      this.restoreMarketplaceFocus();
     },
     getFocusableElements(container) {
       if (!container) return [];
@@ -2202,6 +2523,33 @@
       if (mod10 === 1 && mod100 !== 11) return "день";
       if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return "дня";
       return "дней";
+    },
+    showMarketplacePhone(vendorName, trigger) {
+      const safeName = this.escapeHtml(vendorName || "подрядчика");
+      const rawPhone = typeof MARKETPLACE_PHONE_NUMBER === "string" && MARKETPLACE_PHONE_NUMBER.trim().length
+        ? MARKETPLACE_PHONE_NUMBER.trim()
+        : "+7 (999) 867 17 49";
+      const safePhone = this.escapeHtml(rawPhone);
+      const phoneHref = this.escapeHtml(this.formatPhoneHref(rawPhone) || "");
+      this.state.modalOpen = true;
+      this.state.lastFocused = trigger || document.activeElement;
+      const titleEl = document.getElementById("modal-title");
+      if (titleEl) {
+        titleEl.textContent = "Контакты подрядчика";
+      }
+      this.modalBody.innerHTML = `
+        <div class="marketplace-modal">
+          <p>Позвоните <strong>${safeName}</strong>, чтобы обсудить детали свадьбы.</p>
+          <p class="marketplace-modal__phone">
+            <span aria-hidden="true">📞</span>
+            <a href="tel:${phoneHref}" class="marketplace-modal__phone-link">${safePhone}</a>
+          </p>
+          <p class="modal-note">Скажите, что нашли подрядчика в Bridebook — так вас вспомнят быстрее.</p>
+        </div>
+      `;
+      this.modalOverlay.classList.add("active");
+      this.modalOverlay.setAttribute("aria-hidden", "false");
+      this.modalCloseBtn.focus();
     },
     openModal(card) {
       this.state.modalOpen = true;
