@@ -19,6 +19,8 @@
   const currencyFormatter = new Intl.NumberFormat("ru-RU");
   const BUDGET_COLORS = ["#E07A8B", "#F4A259", "#5B8E7D", "#7A77B9", "#F1BF98", "#74D3AE"];
   const PROFILE_SCHEMA_VERSION = 3;
+  const PUBLIC_INVITATION_STORAGE_PREFIX = "wedding_invitation_public_";
+
   const WEBSITE_THEMES = [
     {
       id: "blush",
@@ -1097,6 +1099,18 @@
       const updatedText = this.formatWebsiteUpdatedAt(invitation.updatedAt);
       const giftClass = invitation.giftCard && invitation.giftCard.trim().length ? "" : " website-summary__value--placeholder";
       const addressClass = invitation.venueAddress && invitation.venueAddress.trim().length ? "" : " website-summary__value--placeholder";
+      const linkUrl = invitation.publicId ? this.buildPublicInvitationUrl(invitation.publicId) : "";
+      const publishedText = invitation.publicId ? this.formatWebsitePublishedAt(invitation.publishedAt) : "";
+      const linkBlock = linkUrl
+        ? `<li>
+            <span class="website-summary__label">Публичная ссылка</span>
+            <span class="website-summary__value website-summary__value--link">
+              <a href="${this.escapeHtml(linkUrl)}" target="_blank" rel="noopener">${this.escapeHtml(linkUrl)}</a>
+              <button type="button" class="website-summary__copy" data-action="website-copy-link" data-link="${this.escapeHtml(linkUrl)}">Скопировать</button>
+            </span>
+            ${publishedText ? `<span class="website-summary__hint">Активировано: ${this.escapeHtml(publishedText)}</span>` : ""}
+          </li>`
+        : "";
       const updatedBlock = updatedText
         ? `<p class="website-summary__updated">Обновлено: ${this.escapeHtml(updatedText)}</p>`
         : "";
@@ -1122,6 +1136,7 @@
             <span class="website-summary__label">Подарки</span>
             <span class="website-summary__value${giftClass}">${this.escapeHtml(giftCard)}</span>
           </li>
+          ${linkBlock}
         </ul>
         ${updatedBlock}
       `;
@@ -1215,6 +1230,49 @@
           this.exportWebsiteInvitation(currentInvitation, currentTheme);
         });
       }
+      this.appEl.querySelectorAll('[data-action="website-copy-link"]').forEach((button) => {
+        button.addEventListener("click", () => {
+          const link = button.dataset.link;
+          if (!link) {
+            return;
+          }
+          const originalLabel = button.textContent;
+          const setCopiedState = () => {
+            button.textContent = "Скопировано";
+            button.disabled = true;
+            setTimeout(() => {
+              button.textContent = originalLabel;
+              button.disabled = false;
+            }, 2000);
+          };
+          const fallbackCopy = () => {
+            try {
+              const textarea = document.createElement("textarea");
+              textarea.value = link;
+              textarea.setAttribute("readonly", "true");
+              textarea.style.position = "absolute";
+              textarea.style.left = "-9999px";
+              document.body.appendChild(textarea);
+              textarea.select();
+              document.execCommand("copy");
+              document.body.removeChild(textarea);
+              setCopiedState();
+            } catch (error) {
+              alert("Не удалось скопировать ссылку. Пожалуйста, скопируйте её вручную.");
+            }
+          };
+          if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+            navigator.clipboard
+              .writeText(link)
+              .then(setCopiedState)
+              .catch(() => {
+                fallbackCopy();
+              });
+          } else {
+            fallbackCopy();
+          }
+        });
+      });
       const form = this.appEl.querySelector("#website-form");
       if (form) {
         form.addEventListener("submit", (event) => {
@@ -1327,7 +1385,9 @@
         venueAddress: "",
         giftCard: "",
         theme: defaultTheme,
-        updatedAt: timestamp
+        updatedAt: timestamp,
+        publicId: "",
+        publishedAt: null
       };
     },
     normalizeWebsiteInvitation(invitation, timestamp = Date.now()) {
@@ -1342,7 +1402,9 @@
         venueAddress: typeof source.venueAddress === "string" ? source.venueAddress.trim() : base.venueAddress,
         giftCard: typeof source.giftCard === "string" ? source.giftCard.trim() : base.giftCard,
         theme: this.resolveWebsiteTheme(source.theme).id,
-        updatedAt: Number.isFinite(Number(source.updatedAt)) ? Number(source.updatedAt) : base.updatedAt
+        updatedAt: Number.isFinite(Number(source.updatedAt)) ? Number(source.updatedAt) : base.updatedAt,
+        publicId: typeof source.publicId === "string" ? source.publicId.trim() : base.publicId,
+        publishedAt: Number.isFinite(Number(source.publishedAt)) ? Number(source.publishedAt) : base.publishedAt
       };
       const keys = Object.keys(sanitized);
       const updated =
@@ -1460,6 +1522,22 @@
         return "";
       }
     },
+    formatWebsitePublishedAt(timestamp) {
+      const numeric = Number(timestamp);
+      if (!Number.isFinite(numeric)) {
+        return "";
+      }
+      try {
+        return new Intl.DateTimeFormat("ru-RU", {
+          day: "numeric",
+          month: "long",
+          hour: "2-digit",
+          minute: "2-digit"
+        }).format(numeric);
+      } catch (error) {
+        return "";
+      }
+    },
     getWebsiteFormValuesForRender(invitation, profile) {
       const base = {
         groom: invitation.groom || (profile && profile.groomName) || "",
@@ -1479,15 +1557,16 @@
       return base;
     },
     openWebsitePublicView(invitation, theme) {
-      const html = this.renderWebsitePublicHtml(invitation, theme);
-      const popup = window.open("", "_blank", "noopener");
+      const publication = this.publishWebsiteInvitation(invitation, theme);
+      if (!publication || !publication.url) {
+        return;
+      }
+      this.renderWebsiteDesigner();
+      const popup = window.open(publication.url, "_blank", "noopener");
       if (!popup) {
         alert("Не удалось открыть новое окно. Разрешите всплывающие окна, чтобы просмотреть сайт.");
         return;
       }
-      popup.document.open();
-      popup.document.write(html);
-      popup.document.close();
       popup.focus();
     },
     exportWebsiteInvitation(invitation, theme) {
@@ -1501,18 +1580,38 @@
       popup.document.write(html);
       popup.document.close();
       const triggerPrint = () => {
-        popup.focus();
-        popup.print();
+        if (popup.closed) {
+          return;
+        }
+        const executePrint = () => {
+          if (popup.closed) {
+            return;
+          }
+          popup.focus();
+          popup.print();
+        };
+        if (popup.document.fonts && typeof popup.document.fonts.ready?.then === "function") {
+          popup.document.fonts.ready.then(() => setTimeout(executePrint, 120)).catch(executePrint);
+        } else {
+          setTimeout(executePrint, 120);
+        }
       };
       if (popup.document.readyState === "complete") {
-        setTimeout(triggerPrint, 120);
+        triggerPrint();
       } else {
-        popup.addEventListener("load", () => setTimeout(triggerPrint, 120));
+        popup.document.addEventListener(
+          "readystatechange",
+          () => {
+            if (popup.document.readyState === "complete") {
+              triggerPrint();
+            }
+          },
+          { once: true }
+        );
       }
     },
-    renderWebsitePublicHtml(invitation, theme) {
+    renderWebsitePublicHtml(invitation, theme, options = {}) {
       const resolvedTheme = this.resolveWebsiteTheme(theme?.id || invitation.theme);
-      const colors = resolvedTheme.colors || {};
       const groom = this.escapeHtml(invitation.groom || "Жених");
       const bride = this.escapeHtml(invitation.bride || "Невеста");
       const dateText = this.escapeHtml(this.formatWebsiteDate(invitation.date) || "Дата уточняется");
@@ -1529,6 +1628,7 @@
       const fontLink = resolvedTheme.fontLink
         ? `<link rel="stylesheet" href="${this.escapeHtml(resolvedTheme.fontLink)}">`
         : "";
+      const css = this.buildPublicInvitationCss(resolvedTheme, options);
       return `<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -1537,7 +1637,31 @@
   <title>${groom} и ${bride} — свадебное приглашение</title>
   ${fontLink}
   <style>
-    :root {
+    ${css}
+  </style>
+</head>
+<body>
+  <main class="invitation">
+    <div class="invitation__content">
+      <p class="invitation__eyebrow">${this.escapeHtml(resolvedTheme.tagline || "Приглашение")}</p>
+      <h1>${groom} и ${bride}</h1>
+      <p class="invitation__date">${dateLine}</p>
+      <div class="invitation__venue">
+        <strong>${venueName}</strong>
+        <p>${venueAddress}</p>
+      </div>
+      ${giftCard}
+      <footer>
+        <p>Мы будем рады видеть вас в этот особенный день.</p>
+      </footer>
+    </div>
+  </main>
+</body>
+</html>`;
+    },
+    buildPublicInvitationCss(resolvedTheme, options = {}) {
+      const colors = resolvedTheme.colors || {};
+      const base = `:root {
       --bg: ${colors.background || "#ffffff"};
       --card: ${colors.card || "rgba(255,255,255,0.9)"};
       --accent: ${colors.accent || "#e07a8b"};
@@ -1589,13 +1713,6 @@
       font-family: var(--heading-font);
       font-weight: 600;
       font-size: clamp(2.2rem, 6vw, 3.4rem);
-    }
-    h2 {
-      margin: 0;
-      font-family: var(--heading-font);
-      font-weight: 500;
-      font-size: clamp(2.6rem, 7vw, 3.8rem);
-      letter-spacing: 0.04em;
     }
     h3 {
       margin: 0 0 0.5rem;
@@ -1650,27 +1767,105 @@
         width: 100%;
         min-height: 100vh;
       }
-    }
-  </style>
-</head>
-<body>
-  <main class="invitation">
-    <div class="invitation__content">
-      <p class="invitation__eyebrow">${this.escapeHtml(resolvedTheme.tagline || "Приглашение")}</p>
-      <h1>${groom} и ${bride}</h1>
-      <p class="invitation__date">${dateLine}</p>
-      <div class="invitation__venue">
-        <strong>${venueName}</strong>
-        <p>${venueAddress}</p>
-      </div>
-      ${giftCard}
-      <footer>
-        <p>Мы будем рады видеть вас в этот особенный день.</p>
-      </footer>
-    </div>
-  </main>
-</body>
-</html>`;
+    }`;
+      const pageRule = options.forPrint
+        ? `@page {
+      size: A4 portrait;
+      margin: 0;
+    }`
+        : "";
+      return `${pageRule}
+    ${base}`;
+    },
+    generateWebsitePublicId() {
+      const random = Math.random().toString(36).slice(2, 8);
+      const timestamp = Date.now().toString(36);
+      return `invite-${timestamp}-${random}`;
+    },
+    getPublicInvitationStorageKey(publicId) {
+      return `${PUBLIC_INVITATION_STORAGE_PREFIX}${publicId}`;
+    },
+    buildPublicInvitationPayload(publicId, invitation, theme) {
+      const sanitizedInvitation = {
+        groom: invitation.groom || "",
+        bride: invitation.bride || "",
+        date: invitation.date || "",
+        time: invitation.time || "",
+        venueName: invitation.venueName || "",
+        venueAddress: invitation.venueAddress || "",
+        giftCard: invitation.giftCard || "",
+        theme: invitation.theme || theme.id,
+        publicId: invitation.publicId || publicId,
+        updatedAt: invitation.updatedAt || Date.now(),
+        publishedAt: invitation.publishedAt || Date.now()
+      };
+      return {
+        version: 1,
+        publicId,
+        publishedAt: sanitizedInvitation.publishedAt,
+        updatedAt: sanitizedInvitation.updatedAt,
+        invitation: sanitizedInvitation,
+        theme: {
+          id: theme.id,
+          name: theme.name,
+          description: theme.description,
+          tagline: theme.tagline,
+          colors: { ...(theme.colors || {}) },
+          headingFont: theme.headingFont,
+          bodyFont: theme.bodyFont,
+          fontLink: theme.fontLink
+        }
+      };
+    },
+    persistPublicInvitation(publicId, invitation, theme) {
+      const payload = this.buildPublicInvitationPayload(publicId, invitation, theme);
+      try {
+        localStorage.setItem(this.getPublicInvitationStorageKey(publicId), JSON.stringify(payload));
+      } catch (error) {
+        console.error("Не удалось сохранить публичную версию приглашения", error);
+      }
+      return payload;
+    },
+    buildPublicInvitationUrl(publicId) {
+      if (!publicId) {
+        return "";
+      }
+      try {
+        const baseUrl = new URL(window.location.href);
+        baseUrl.hash = "";
+        baseUrl.search = "";
+        const segments = baseUrl.pathname.split("/");
+        segments[segments.length - 1] = "invitation.html";
+        baseUrl.pathname = segments.join("/");
+        baseUrl.searchParams.set("id", publicId);
+        return baseUrl.toString();
+      } catch (error) {
+        return `${window.location.origin}/invitation.html?id=${encodeURIComponent(publicId)}`;
+      }
+    },
+    publishWebsiteInvitation(invitation, theme) {
+      try {
+        const resolvedTheme = this.resolveWebsiteTheme(theme?.id || invitation.theme);
+        const normalized = this.normalizeWebsiteInvitation({ ...invitation, theme: resolvedTheme.id }, Date.now());
+        const currentInvitation = { ...normalized.invitation };
+        if (!currentInvitation.publicId) {
+          currentInvitation.publicId = this.generateWebsitePublicId();
+        }
+        const now = Date.now();
+        currentInvitation.publishedAt = now;
+        currentInvitation.updatedAt = now;
+        const normalizedFinal = this.normalizeWebsiteInvitation(currentInvitation, currentInvitation.updatedAt).invitation;
+        this.updateProfile({ websiteInvitation: normalizedFinal });
+        this.persistPublicInvitation(normalizedFinal.publicId, normalizedFinal, resolvedTheme);
+        return {
+          publicId: normalizedFinal.publicId,
+          url: this.buildPublicInvitationUrl(normalizedFinal.publicId)
+        };
+      } catch (error) {
+        console.error("Не удалось опубликовать приглашение", error);
+        alert("Произошла ошибка при активации сайта. Попробуйте ещё раз.");
+        return null;
+      }
     },
     renderMarketplaceModule(backgroundInertAttributes = "") {
       const categories = Array.isArray(CONTRACTOR_MARKETPLACE) ? CONTRACTOR_MARKETPLACE : [];
