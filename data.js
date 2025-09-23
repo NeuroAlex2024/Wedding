@@ -112,6 +112,8 @@ const MARKETPLACE_IMAGES = [
   "https://images.unsplash.com/photo-1485700281629-290c5a704409?q=80&w=2069&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
 ];
 
+const MARKETPLACE_PHONE_NUMBER = "+7 (999) 867 17 49";
+
 const CONTRACTOR_MARKETPLACE = [
   {
     id: "photographers",
@@ -146,6 +148,36 @@ const CONTRACTOR_MARKETPLACE = [
         reviews: 623,
         image: MARKETPLACE_IMAGES[2],
         location: "Казань"
+      },
+      {
+        id: "photo-liza",
+        name: "Фотограф Лиза",
+        tagline: "Лайфстайл-съемка, искренние эмоции и быстрые превью в день свадьбы.",
+        price: 22000,
+        rating: 4.8,
+        reviews: 978,
+        image: MARKETPLACE_IMAGES[3],
+        location: "Сочи"
+      },
+      {
+        id: "photo-igor",
+        name: "Фотограф Игорь",
+        tagline: "Световые схемы, дроны и съемка до последнего гостя на танцполе.",
+        price: 17000,
+        rating: 4.6,
+        reviews: 312,
+        image: MARKETPLACE_IMAGES[4],
+        location: "Нижний Новгород"
+      },
+      {
+        id: "photo-nika",
+        name: "Фотограф Ника",
+        tagline: "Минималистичный стиль, пленка и авторские фотокниги на заказ.",
+        price: 15000,
+        rating: 4.7,
+        reviews: 459,
+        image: MARKETPLACE_IMAGES[1],
+        location: "Санкт-Петербург"
       }
     ]
   },
@@ -182,6 +214,36 @@ const CONTRACTOR_MARKETPLACE = [
         reviews: 287,
         image: MARKETPLACE_IMAGES[0],
         location: "Екатеринбург"
+      },
+      {
+        id: "video-lera",
+        name: "Видеограф Лера",
+        tagline: "Slow motion, саунд-дизайн и вертикальные версии для Reels.",
+        price: 24000,
+        rating: 4.7,
+        reviews: 389,
+        image: MARKETPLACE_IMAGES[2],
+        location: "Казань"
+      },
+      {
+        id: "video-ivan",
+        name: "Видеограф Иван",
+        tagline: "Командная съемка 2 оператора + квадрокоптер, монтаж за 14 дней.",
+        price: 20000,
+        rating: 4.5,
+        reviews: 198,
+        image: MARKETPLACE_IMAGES[4],
+        location: "Ростов-на-Дону"
+      },
+      {
+        id: "video-dreamteam",
+        name: "DreamTeam Studio",
+        tagline: "Premium story, живой звук церемонии и трейлер в день свадьбы.",
+        price: 28000,
+        rating: 4.9,
+        reviews: 725,
+        image: MARKETPLACE_IMAGES[1],
+        location: "Москва"
       }
     ]
   },
@@ -218,6 +280,36 @@ const CONTRACTOR_MARKETPLACE = [
         reviews: 915,
         image: MARKETPLACE_IMAGES[3],
         location: "Санкт-Петербург"
+      },
+      {
+        id: "catering-terrine",
+        name: "Terrine Catering",
+        tagline: "Сезонное меню, фуд-пейринг с винами и шоу-станции.",
+        price: 24000,
+        rating: 4.6,
+        reviews: 312,
+        image: MARKETPLACE_IMAGES[0],
+        location: "Москва"
+      },
+      {
+        id: "catering-skytable",
+        name: "SkyTable",
+        tagline: "Фуршет на крыше, коктейльный бар и авторские десерты.",
+        price: 18000,
+        rating: 4.5,
+        reviews: 204,
+        image: MARKETPLACE_IMAGES[2],
+        location: "Санкт-Петербург"
+      },
+      {
+        id: "catering-familychef",
+        name: "Family Chef",
+        tagline: "Домашние рецепты в современном прочтении и сервис 360°.",
+        price: 20000,
+        rating: 4.8,
+        reviews: 488,
+        image: MARKETPLACE_IMAGES[4],
+        location: "Екатеринбург"
       }
     ]
   },
@@ -254,6 +346,36 @@ const CONTRACTOR_MARKETPLACE = [
         reviews: 529,
         image: MARKETPLACE_IMAGES[2],
         location: "Калининград"
+      },
+      {
+        id: "florist-rosy",
+        name: "Rosy Bloom",
+        tagline: "Пудровые букеты, живые композиции на столы и бутоньерки в тон.",
+        price: 16000,
+        rating: 4.6,
+        reviews: 276,
+        image: MARKETPLACE_IMAGES[3],
+        location: "Москва"
+      },
+      {
+        id: "florist-atelier",
+        name: "Atelier Fleur",
+        tagline: "Сложные цветовые схемы, лавандовые арки и флористика welcome-зоны.",
+        price: 22000,
+        rating: 4.9,
+        reviews: 512,
+        image: MARKETPLACE_IMAGES[0],
+        location: "Санкт-Петербург"
+      },
+      {
+        id: "florist-greenstory",
+        name: "Green Story",
+        tagline: "Эко-композиции, стабилизированные растения и аренда кашпо.",
+        price: 14000,
+        rating: 4.5,
+        reviews: 198,
+        image: MARKETPLACE_IMAGES[4],
+        location: "Краснодар"
       }
     ]
   },
@@ -290,6 +412,36 @@ const CONTRACTOR_MARKETPLACE = [
         reviews: 487,
         image: MARKETPLACE_IMAGES[4],
         location: "Санкт-Петербург"
+      },
+      {
+        id: "cars-whitebird",
+        name: "Белая Птица",
+        tagline: "Cadillac Eldorado, белые ленты и фотосессия на выезде.",
+        price: 26000,
+        rating: 4.6,
+        reviews: 199,
+        image: MARKETPLACE_IMAGES[0],
+        location: "Москва"
+      },
+      {
+        id: "cars-grace",
+        name: "Grace Drive",
+        tagline: "Tesla Model X, водители в смокингах и бар в салоне.",
+        price: 22000,
+        rating: 4.5,
+        reviews: 180,
+        image: MARKETPLACE_IMAGES[2],
+        location: "Санкт-Петербург"
+      },
+      {
+        id: "cars-nightdrive",
+        name: "Night Drive",
+        tagline: "Неоновые подсветки, ретро лимузин и сопровождение кортежа.",
+        price: 15000,
+        rating: 4.4,
+        reviews: 134,
+        image: MARKETPLACE_IMAGES[3],
+        location: "Краснодар"
       }
     ]
   },
@@ -326,6 +478,36 @@ const CONTRACTOR_MARKETPLACE = [
         reviews: 915,
         image: MARKETPLACE_IMAGES[1],
         location: "Санкт-Петербург"
+      },
+      {
+        id: "attire-muse",
+        name: "Atelier Muse",
+        tagline: "Капсульные коллекции, апдейты образа и перешив платьев мам.",
+        price: 23000,
+        rating: 4.7,
+        reviews: 377,
+        image: MARKETPLACE_IMAGES[3],
+        location: "Москва"
+      },
+      {
+        id: "attire-couture",
+        name: "Couture Union",
+        tagline: "Ручная вышивка, редкие ткани и костюмы для свидетелей.",
+        price: 30000,
+        rating: 4.9,
+        reviews: 555,
+        image: MARKETPLACE_IMAGES[4],
+        location: "Санкт-Петербург"
+      },
+      {
+        id: "attire-modern",
+        name: "Modern Groom",
+        tagline: "Итальянские ткани, кастомная вышивка и костюмы для друзей жениха.",
+        price: 16000,
+        rating: 4.5,
+        reviews: 209,
+        image: MARKETPLACE_IMAGES[0],
+        location: "Новосибирск"
       }
     ]
   },
@@ -362,6 +544,36 @@ const CONTRACTOR_MARKETPLACE = [
         reviews: 512,
         image: MARKETPLACE_IMAGES[0],
         location: "Казань"
+      },
+      {
+        id: "host-alexey",
+        name: "Ведущий Алексей",
+        tagline: "Интерактивы без пошлости, live викторины и уютный юмор.",
+        price: 22000,
+        rating: 4.8,
+        reviews: 432,
+        image: MARKETPLACE_IMAGES[1],
+        location: "Екатеринбург"
+      },
+      {
+        id: "host-olga",
+        name: "Ведущая Ольга",
+        tagline: "Двухъязычные программы, тосты в духе stand-up и координация подрядчиков.",
+        price: 18000,
+        rating: 4.6,
+        reviews: 285,
+        image: MARKETPLACE_IMAGES[4],
+        location: "Москва"
+      },
+      {
+        id: "host-roman",
+        name: "Ведущий Роман",
+        tagline: "Совместные репетиции first dance и light шоу с командой.",
+        price: 23000,
+        rating: 4.7,
+        reviews: 356,
+        image: MARKETPLACE_IMAGES[3],
+        location: "Сочи"
       }
     ]
   },
@@ -398,6 +610,36 @@ const CONTRACTOR_MARKETPLACE = [
         reviews: 502,
         image: MARKETPLACE_IMAGES[4],
         location: "Санкт-Петербург"
+      },
+      {
+        id: "dj-vinyl",
+        name: "DJ Vinyl",
+        tagline: "Виниловый сет welcome-зоны и лайв смешение любимых треков.",
+        price: 14000,
+        rating: 4.7,
+        reviews: 298,
+        image: MARKETPLACE_IMAGES[0],
+        location: "Москва"
+      },
+      {
+        id: "dj-pulse",
+        name: "DJ Pulse",
+        tagline: "EDM + pop, светодиодные панели и интерактив с гостями.",
+        price: 17000,
+        rating: 4.8,
+        reviews: 368,
+        image: MARKETPLACE_IMAGES[2],
+        location: "Казань"
+      },
+      {
+        id: "dj-aurora",
+        name: "DJ Aurora",
+        tagline: "Lo-fi welcome, live-pad шоу и каверы на любимые саундтреки.",
+        price: 12000,
+        rating: 4.5,
+        reviews: 189,
+        image: MARKETPLACE_IMAGES[3],
+        location: "Новосибирск"
       }
     ]
   },
@@ -434,6 +676,36 @@ const CONTRACTOR_MARKETPLACE = [
         reviews: 452,
         image: MARKETPLACE_IMAGES[0],
         location: "Новосибирск"
+      },
+      {
+        id: "jewelry-cascade",
+        name: "Cascade Gems",
+        tagline: "Кольца-трансформеры, бриллианты CanadaMark и сервис чистки.",
+        price: 18000,
+        rating: 4.6,
+        reviews: 289,
+        image: MARKETPLACE_IMAGES[1],
+        location: "Казань"
+      },
+      {
+        id: "jewelry-atelier",
+        name: "Atelier Bril",
+        tagline: "Гравировка почерком, камни fancy оттенков и экспресс-скизы.",
+        price: 22000,
+        rating: 4.8,
+        reviews: 412,
+        image: MARKETPLACE_IMAGES[3],
+        location: "Москва"
+      },
+      {
+        id: "jewelry-glow",
+        name: "Glow & Co.",
+        tagline: "Сертификаты GIA, кастомные шкатулки и доставка по России.",
+        price: 9000,
+        rating: 4.5,
+        reviews: 204,
+        image: MARKETPLACE_IMAGES[4],
+        location: "Санкт-Петербург"
       }
     ]
   }

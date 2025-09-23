@@ -45,7 +45,9 @@
       checklistDragTaskId: null,
       marketplaceCategoryId: Array.isArray(CONTRACTOR_MARKETPLACE) && CONTRACTOR_MARKETPLACE.length
         ? CONTRACTOR_MARKETPLACE[0].id
-        : null
+        : null,
+      marketplaceFavorites: [],
+      pendingMarketplaceFocus: null
     },
     init() {
       this.cacheDom();
@@ -826,12 +828,29 @@
         return "";
       }
       let selectedId = this.state.marketplaceCategoryId;
-      if (!selectedId || !categories.some((category) => category && category.id === selectedId)) {
+      const favoritesEntries = this.getMarketplaceFavoriteContractors();
+      const hasSelectedCategory = categories.some((category) => category && category.id === selectedId);
+      if (selectedId !== "favorites" && (!selectedId || !hasSelectedCategory)) {
         selectedId = categories[0]?.id || null;
         this.state.marketplaceCategoryId = selectedId;
       }
-      const categoriesMarkup = categories
-        .map((category) => {
+      const isFavoritesSelected = selectedId === "favorites";
+      const favoritesMarkup = (() => {
+        const favoritesCountFormatted = currencyFormatter.format(favoritesEntries.length);
+        const isActive = isFavoritesSelected;
+        return `
+          <button type="button" class="marketplace-category marketplace-category--favorites${isActive ? " marketplace-category--active" : ""}" data-category-id="favorites" aria-pressed="${isActive}" aria-controls="marketplace-panel-favorites">
+            <span class="marketplace-category__label">
+              <span class="marketplace-category__icon" aria-hidden="true">❤</span>
+              <span class="marketplace-category__name">Избранное</span>
+            </span>
+            <span class="marketplace-category__count">${this.escapeHtml(favoritesCountFormatted)}</span>
+          </button>
+        `;
+      })();
+      const categoriesMarkup = [
+        favoritesMarkup,
+        ...categories.map((category) => {
           if (!category || typeof category !== "object") {
             return "";
           }
@@ -846,19 +865,40 @@
           const isActive = category.id === selectedId;
           return `
             <button type="button" class="marketplace-category${isActive ? " marketplace-category--active" : ""}" data-category-id="${safeId}" aria-pressed="${isActive}" aria-controls="marketplace-panel-${safeId}">
-              <span class="marketplace-category__name">${title}</span>
+              <span class="marketplace-category__label">
+                <span class="marketplace-category__name">${title}</span>
+              </span>
               <span class="marketplace-category__count">${this.escapeHtml(formattedCount)}</span>
             </button>
           `;
         })
+      ]
+        .filter(Boolean)
         .join("");
-      const selectedCategory = categories.find((category) => category && category.id === selectedId) || categories[0];
-      const selectedSafeId = this.escapeHtml(selectedCategory?.id || "all");
-      const cardsMarkup = selectedCategory && Array.isArray(selectedCategory.contractors) && selectedCategory.contractors.length
-        ? selectedCategory.contractors
-            .map((contractor, index) => this.renderMarketplaceCard(contractor, selectedCategory, index))
-            .join("")
-        : '<p class="marketplace-empty">Скоро добавим подрядчиков в эту категорию.</p>';
+      let selectedCategory = null;
+      if (!isFavoritesSelected) {
+        selectedCategory = categories.find((category) => category && category.id === selectedId) || categories[0];
+        if (selectedCategory && selectedCategory.id !== selectedId) {
+          selectedId = selectedCategory.id;
+          this.state.marketplaceCategoryId = selectedId;
+        }
+      }
+      const selectedSafeId = this.escapeHtml(isFavoritesSelected ? "favorites" : selectedCategory?.id || "all");
+      let cardsMarkup = "";
+      if (isFavoritesSelected) {
+        cardsMarkup = favoritesEntries.length
+          ? favoritesEntries
+              .map(({ contractor, category }, index) => this.renderMarketplaceCard(contractor, category, index))
+              .join("")
+          : '<p class="marketplace-empty marketplace-empty--favorites">Добавляйте подрядчиков в избранное, нажав на сердечко в карточке.</p>';
+      } else if (selectedCategory && Array.isArray(selectedCategory.contractors)) {
+        const subset = this.getMarketplaceRandomSubset(selectedCategory.contractors);
+        cardsMarkup = subset.length
+          ? subset.map((contractor, index) => this.renderMarketplaceCard(contractor, selectedCategory, index)).join("")
+          : '<p class="marketplace-empty">Скоро добавим подрядчиков в эту категорию.</p>';
+      } else {
+        cardsMarkup = '<p class="marketplace-empty">Скоро добавим подрядчиков в эту категорию.</p>';
+      }
       return `
         <section class="dashboard-module marketplace" data-area="marketplace" aria-labelledby="marketplace-title"${backgroundInertAttributes}>
           <div class="module-header">
@@ -885,6 +925,12 @@
         ? contractor.name.trim()
         : fallbackName;
       const safeName = this.escapeHtml(rawName);
+      const vendorId = typeof contractor.id === "string" && contractor.id.trim().length
+        ? contractor.id.trim()
+        : rawName;
+      const safeVendorId = this.escapeHtml(vendorId);
+      const isFavorite = this.isMarketplaceFavorite(vendorId);
+      const favoriteLabel = isFavorite ? "Убрать из избранного" : "Добавить в избранное";
       const priceValue = Number(contractor.price);
       const price = Number.isFinite(priceValue) ? Math.max(0, Math.round(priceValue)) : 0;
       const ratingValue = Number.parseFloat(contractor.rating);
@@ -910,6 +956,10 @@
         <article class="marketplace-card" role="listitem">
           <div class="marketplace-card__image">
             <img src="${this.escapeHtml(imageUrl)}" alt="${altText}">
+            <button type="button" class="marketplace-card__favorite${isFavorite ? " is-active" : ""}" data-action="marketplace-favorite" data-vendor-id="${safeVendorId}" aria-pressed="${isFavorite}" title="${this.escapeHtml(favoriteLabel)}">
+              <span aria-hidden="true">${isFavorite ? "❤️" : "♡"}</span>
+              <span class="sr-only">${this.escapeHtml(favoriteLabel)}</span>
+            </button>
           </div>
           <div class="marketplace-card__info">
             <p class="marketplace-card__price"><strong>${this.formatCurrency(price)}</strong></p>
@@ -921,11 +971,147 @@
             ${location}
             ${description}
             <div class="marketplace-card__actions">
-              <button type="button" class="marketplace-card__action" data-action="marketplace-request" data-vendor-name="${this.escapeHtml(rawName)}">Забронировать</button>
+              <button type="button" class="marketplace-card__action" data-action="marketplace-phone" data-vendor-name="${this.escapeHtml(rawName)}" data-vendor-id="${safeVendorId}">Показать телефон</button>
             </div>
           </div>
         </article>
       `;
+    },
+    getMarketplaceFavoriteContractors() {
+      const favorites = Array.isArray(this.state.marketplaceFavorites) ? this.state.marketplaceFavorites : [];
+      if (!favorites.length) {
+        return [];
+      }
+      return favorites
+        .map((vendorId) => this.getMarketplaceVendorById(vendorId))
+        .filter((entry) => entry && entry.contractor && entry.category);
+    },
+    getMarketplaceVendorById(vendorId) {
+      const id = typeof vendorId === "string" ? vendorId.trim() : "";
+      if (!id || !Array.isArray(CONTRACTOR_MARKETPLACE)) {
+        return null;
+      }
+      for (const category of CONTRACTOR_MARKETPLACE) {
+        if (!category || !Array.isArray(category.contractors)) {
+          continue;
+        }
+        for (const contractor of category.contractors) {
+          if (!contractor || typeof contractor !== "object") {
+            continue;
+          }
+          const contractorId = typeof contractor.id === "string" ? contractor.id.trim() : "";
+          if (contractorId && contractorId === id) {
+            return { contractor, category };
+          }
+        }
+      }
+      return null;
+    },
+    getMarketplaceRandomSubset(contractors) {
+      if (!Array.isArray(contractors)) {
+        return [];
+      }
+      const normalized = contractors.filter((item) => item && typeof item === "object");
+      if (!normalized.length) {
+        return [];
+      }
+      if (normalized.length <= 3) {
+        return normalized.slice();
+      }
+      const minCount = Math.min(3, normalized.length);
+      const maxCount = Math.min(6, normalized.length);
+      const count = this.getRandomInt(minCount, maxCount);
+      return this.getRandomSample(normalized, count);
+    },
+    getRandomInt(min, max) {
+      const minValue = Math.ceil(Number(min));
+      const maxValue = Math.floor(Number(max));
+      if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) {
+        return 0;
+      }
+      if (maxValue < minValue) {
+        return minValue;
+      }
+      return Math.floor(Math.random() * (maxValue - minValue + 1)) + minValue;
+    },
+    getRandomSample(items, count) {
+      if (!Array.isArray(items)) {
+        return [];
+      }
+      const maxCount = Math.max(0, Math.min(Number(count), items.length));
+      if (!maxCount) {
+        return [];
+      }
+      const copy = items.slice();
+      for (let i = copy.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy.slice(0, maxCount);
+    },
+    isMarketplaceFavorite(vendorId) {
+      const id = typeof vendorId === "string" ? vendorId.trim() : "";
+      if (!id) {
+        return false;
+      }
+      const favorites = Array.isArray(this.state.marketplaceFavorites) ? this.state.marketplaceFavorites : [];
+      return favorites.includes(id);
+    },
+    toggleMarketplaceFavorite(vendorId) {
+      const id = typeof vendorId === "string" ? vendorId.trim() : "";
+      if (!id) {
+        return;
+      }
+      const favorites = Array.isArray(this.state.marketplaceFavorites) ? this.state.marketplaceFavorites.slice() : [];
+      const index = favorites.indexOf(id);
+      if (index >= 0) {
+        favorites.splice(index, 1);
+      } else {
+        favorites.push(id);
+      }
+      this.state.marketplaceFavorites = favorites;
+      this.state.pendingMarketplaceFocus = { type: "favorite", id };
+      this.renderDashboard();
+    },
+    restoreMarketplaceFocus() {
+      const pending = this.state.pendingMarketplaceFocus;
+      if (!pending) {
+        return;
+      }
+      this.state.pendingMarketplaceFocus = null;
+      if (pending.type === "favorite" && pending.id) {
+        const selectorId = this.escapeSelector(pending.id);
+        if (!selectorId) {
+          return;
+        }
+        const button = this.appEl.querySelector(`[data-action="marketplace-favorite"][data-vendor-id="${selectorId}"]`);
+        if (button && typeof button.focus === "function") {
+          button.focus();
+        }
+      }
+    },
+    escapeSelector(value) {
+      if (typeof value !== "string") {
+        return "";
+      }
+      if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
+        return CSS.escape(value);
+      }
+      return value.replace(/([^a-zA-Z0-9_-])/g, "\\$1");
+    },
+    formatPhoneHref(phone) {
+      if (typeof phone !== "string") {
+        return "";
+      }
+      const trimmed = phone.trim();
+      if (!trimmed) {
+        return "";
+      }
+      const digits = trimmed.replace(/\D+/g, "");
+      if (!digits) {
+        return "";
+      }
+      return trimmed.startsWith("+") ? `+${digits}` : digits;
     },
     getChecklistCollections(profile) {
       const sourceProfile = profile || this.state.profile || {};
@@ -1428,13 +1614,20 @@
           this.renderDashboard();
         });
       });
-      this.appEl.querySelectorAll('[data-action="marketplace-request"]').forEach((button) => {
+      this.appEl.querySelectorAll('[data-action="marketplace-phone"]').forEach((button) => {
         button.addEventListener("click", () => {
           const vendorName = button.dataset.vendorName || "";
-          this.showMarketplaceStub(vendorName, button);
+          this.showMarketplacePhone(vendorName, button);
+        });
+      });
+      this.appEl.querySelectorAll('[data-action="marketplace-favorite"]').forEach((button) => {
+        button.addEventListener("click", () => {
+          const vendorId = button.dataset.vendorId || "";
+          this.toggleMarketplaceFavorite(vendorId);
         });
       });
       this.animateBudget(previousTotal, totalBudget);
+      this.restoreMarketplaceFocus();
     },
     getFocusableElements(container) {
       if (!container) return [];
@@ -2331,17 +2524,28 @@
       if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return "дня";
       return "дней";
     },
-    showMarketplaceStub(vendorName, trigger) {
+    showMarketplacePhone(vendorName, trigger) {
       const safeName = this.escapeHtml(vendorName || "подрядчика");
+      const rawPhone = typeof MARKETPLACE_PHONE_NUMBER === "string" && MARKETPLACE_PHONE_NUMBER.trim().length
+        ? MARKETPLACE_PHONE_NUMBER.trim()
+        : "+7 (999) 867 17 49";
+      const safePhone = this.escapeHtml(rawPhone);
+      const phoneHref = this.escapeHtml(this.formatPhoneHref(rawPhone) || "");
       this.state.modalOpen = true;
       this.state.lastFocused = trigger || document.activeElement;
       const titleEl = document.getElementById("modal-title");
       if (titleEl) {
-        titleEl.textContent = "Скоро появится";
+        titleEl.textContent = "Контакты подрядчика";
       }
       this.modalBody.innerHTML = `
-        <p>Скоро вы сможете связаться с <strong>${safeName}</strong> и оформить заказ прямо в Bridebook.</p>
-        <p class="modal-note">Мы уже собираем лучших подрядчиков и включим мгновенные бронирования в ближайшем обновлении.</p>
+        <div class="marketplace-modal">
+          <p>Позвоните <strong>${safeName}</strong>, чтобы обсудить детали свадьбы.</p>
+          <p class="marketplace-modal__phone">
+            <span aria-hidden="true">📞</span>
+            <a href="tel:${phoneHref}" class="marketplace-modal__phone-link">${safePhone}</a>
+          </p>
+          <p class="modal-note">Скажите, что нашли подрядчика в Bridebook — так вас вспомнят быстрее.</p>
+        </div>
       `;
       this.modalOverlay.classList.add("active");
       this.modalOverlay.setAttribute("aria-hidden", "false");
