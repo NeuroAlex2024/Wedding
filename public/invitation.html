@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Приглашение переехало</title>
+  <style>
+    body {
+      font-family: 'Montserrat', 'Segoe UI', sans-serif;
+      margin: 0;
+      padding: 4rem 1.5rem;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #fff6f4, #f4f8ff);
+      color: #2f2a3b;
+    }
+
+    main {
+      max-width: 520px;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 2.5rem;
+      border-radius: 28px;
+      box-shadow: 0 20px 60px rgba(47, 42, 59, 0.12);
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      margin-bottom: 1rem;
+    }
+
+    p {
+      margin: 0.75rem 0;
+      line-height: 1.6;
+    }
+
+    .link {
+      margin-top: 1.5rem;
+      font-weight: 600;
+      color: #d87a8d;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Проверьте ссылку на приглашение</h1>
+    <p id="invitation-message">Ищем опубликованную страницу…</p>
+    <p class="link" id="invitation-link" hidden></p>
+  </main>
+  <script>
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      const slug = params.get('slug') || params.get('id');
+      if (slug) {
+        const target = `/invite/${encodeURIComponent(slug)}`;
+        const linkEl = document.getElementById('invitation-link');
+        if (linkEl) {
+          linkEl.textContent = window.location.origin + target;
+          linkEl.removeAttribute('hidden');
+        }
+        window.location.replace(target);
+        return;
+      }
+      const message = document.getElementById('invitation-message');
+      if (message) {
+        message.textContent = 'Укажите корректный идентификатор приглашения или воспользуйтесь ссылкой вида /invite/имя-пары-дата.';
+      }
+    })();
+  </script>
+</body>
+</html>
