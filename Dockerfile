@@ -10,7 +10,7 @@ RUN npm ci --omit=dev
 COPY . .
 
 # Готовим директорию для статически сгенерированных приглашений
-RUN mkdir -p /usr/src/app/invites \
+RUN mkdir -p /usr/src/app/storage/invites \
   && chown -R node:node /usr/src/app
 
 USER node
@@ -20,6 +20,6 @@ ENV PORT=8000
 
 EXPOSE 8000
 
-CMD ["node", "server.js"]
+CMD ["node", "src/server/index.js"]
 
 

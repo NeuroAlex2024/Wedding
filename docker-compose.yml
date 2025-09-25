@@ -12,6 +12,6 @@ services:
       - "8000:8000"
     volumes:
       # Монтируем только папку с приглашениями, чтобы они сохранялись на хосте
-      - ./invites:/usr/src/app/invites
+      - ./storage/invites:/usr/src/app/storage/invites
     restart: unless-stopped
 
