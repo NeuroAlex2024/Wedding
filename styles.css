@@ -589,18 +589,23 @@ button.secondary:hover {
   position: fixed;
   inset: 0;
   background: rgba(47, 42, 59, 0.45);
-  display: grid;
-  place-items: center;
-  padding: 1.5rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: clamp(1rem, 4vw, 2rem);
   z-index: 30;
+  overflow-y: auto;
+  min-height: 100vh;
 }
 
 .website-designer__dialog {
   width: min(100%, 560px);
+  max-height: calc(100vh - clamp(2rem, 8vw, 3rem));
   background: #fff;
   border-radius: 28px;
   padding: clamp(2rem, 4vw, 3rem);
   box-shadow: 0 30px 70px rgba(47, 42, 59, 0.28);
+  overflow-y: auto;
 }
 
 .website-form__subtitle {
@@ -651,6 +656,10 @@ button.secondary:hover {
 }
 
 @media (max-width: 720px) {
+  .website-designer__dialog {
+    border-radius: 20px;
+    max-height: calc(100vh - 2.5rem);
+  }
   .website-preview {
     min-height: 0;
   }
