@@ -1,4 +1,16 @@
-import themesData from '../shared/themes.json' assert { type: 'json' };
+// Загружаем темы через fetch вместо import
+let themesData = null;
+
+// Функция загрузки тем
+async function loadThemes() {
+  try {
+    const response = await fetch('/shared/themes.json');
+    themesData = await response.json();
+  } catch (error) {
+    console.error('Ошибка загрузки тем:', error);
+    themesData = null;
+  }
+}
 
 (function () {
   const storageKey = "wedding_profile_v1";
@@ -3690,5 +3702,8 @@ import themesData from '../shared/themes.json' assert { type: 'json' };
   };
 
   window.App = App;
-  document.addEventListener("DOMContentLoaded", () => App.init());
+  document.addEventListener("DOMContentLoaded", async () => {
+    await loadThemes();
+    App.init();
+  });
 })();

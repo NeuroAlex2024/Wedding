@@ -5,7 +5,7 @@ const path = require('path');
 const { buildBaseSlug, sanitizeSlug } = require('../utils/slug');
 const { renderInvitationHtml } = require('../templates/invitationTemplate');
 
-const ROOT_DIR = path.join(__dirname, '..', '..');
+const ROOT_DIR = path.join(__dirname, '..', '..', '..');
 const INVITES_DIR = path.join(ROOT_DIR, 'storage', 'invites');
 
 class InvitationNotFoundError extends Error {
