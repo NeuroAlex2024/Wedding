@@ -1,0 +1,17 @@
+version: "3.9"
+services:
+  wedding:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wedding-app
+    environment:
+      - NODE_ENV=production
+      - PORT=8000
+    ports:
+      - "8000:8000"
+    volumes:
+      # Монтируем только папку с приглашениями, чтобы они сохранялись на хосте
+      - ./invites:/usr/src/app/invites
+    restart: unless-stopped
+
