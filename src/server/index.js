@@ -7,6 +7,8 @@ const fsp = require('fs/promises');
 const app = express();
 
 const ROOT_DIR = path.join(__dirname, '..', '..');
+const CLIENT_DIR = path.join(__dirname, '..', 'client');
+const ASSETS_DIR = path.join(ROOT_DIR, 'public', 'assets');
 const INVITES_DIR = path.join(ROOT_DIR, 'storage', 'invites');
 
 app.use(morgan('dev'));
@@ -470,7 +472,8 @@ app.get('/invite/:slug', async (req, res) => {
   }
 });
 
-app.use(express.static(ROOT_DIR, { extensions: ['html'] }));
+app.use(express.static(CLIENT_DIR, { extensions: ['html'] }));
+app.use('/assets', express.static(ASSETS_DIR));
 
 app.use((err, req, res, next) => {
   if (err instanceof SyntaxError && 'body' in err) {
