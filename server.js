@@ -72,7 +72,27 @@ function sanitizeSlug(value) {
   if (!value || typeof value !== 'string') {
     return '';
   }
-  return slugify(value);
+  // Сохраняем регистр, разрешаем только буквы/цифры/дефис, убираем лишние разделители
+  return String(value)
+    .replace(/[^A-Za-z0-9-]+/g, '-')
+    .replace(/-{2,}/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .trim();
+}
+
+function toPascalFrom(value) {
+  if (!value || typeof value !== 'string') {
+    return '';
+  }
+  // Транслитерируем в латиницу (в нижнем регистре), затем делаем PascalCase по словам
+  const base = transliterate(value)
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((token) => token.charAt(0).toUpperCase() + token.slice(1))
+    .join('');
+  return base;
 }
 
 function formatDateForSlug(dateString) {
@@ -91,19 +111,13 @@ function formatDateForSlug(dateString) {
 }
 
 function buildBaseSlug(invitation) {
-  const parts = [];
-  if (invitation.groom) {
-    parts.push(slugify(invitation.groom));
-  }
-  if (invitation.bride) {
-    parts.push(slugify(invitation.bride));
-  }
+  const groomPart = toPascalFrom(invitation.groom || '');
+  const bridePart = toPascalFrom(invitation.bride || '');
+  const namesPart = `${groomPart}${bridePart}`.trim();
   const datePart = formatDateForSlug(invitation.date);
-  if (datePart) {
-    parts.push(datePart);
-  }
-  const base = parts.filter(Boolean).join('-').replace(/-{2,}/g, '-').replace(/^-+|-+$/g, '');
-  return base || 'invite';
+  const baseNames = namesPart || 'Invite';
+  const base = datePart ? `${baseNames}-${datePart}` : baseNames;
+  return base.replace(/-{2,}/g, '-').replace(/^-+|-+$/g, '');
 }
 
 async function ensureInvitesDirectory() {
@@ -438,7 +452,7 @@ app.post('/api/invitations', async (req, res) => {
 });
 
 function isSafeSlug(value) {
-  return /^[a-z0-9-]+$/.test(value);
+  return /^[A-Za-z0-9-]+$/.test(value);
 }
 
 app.get('/invite/:slug', async (req, res) => {
