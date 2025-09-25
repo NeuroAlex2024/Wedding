@@ -6,8 +6,8 @@ const fsp = require('fs/promises');
 
 const app = express();
 
-const ROOT_DIR = __dirname;
-const INVITES_DIR = path.join(ROOT_DIR, 'invites');
+const ROOT_DIR = path.join(__dirname, '..', '..');
+const INVITES_DIR = path.join(ROOT_DIR, 'storage', 'invites');
 
 app.use(morgan('dev'));
 app.use(express.json({ limit: '1mb' }));
