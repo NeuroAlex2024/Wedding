@@ -19,7 +19,6 @@
   const currencyFormatter = new Intl.NumberFormat("ru-RU");
   const BUDGET_COLORS = ["#E07A8B", "#F4A259", "#5B8E7D", "#7A77B9", "#F1BF98", "#74D3AE"];
   const PROFILE_SCHEMA_VERSION = 3;
-  const PUBLIC_INVITATION_STORAGE_PREFIX = "wedding_invitation_public_";
 
   const WEBSITE_THEMES = [
     {
@@ -1214,11 +1213,19 @@
       });
       const activateButton = this.appEl.querySelector('[data-action="website-activate"]');
       if (activateButton) {
-        activateButton.addEventListener("click", () => {
+        activateButton.addEventListener("click", async () => {
           if (activateButton.disabled) return;
-          const currentInvitation = this.getWebsiteInvitation(this.state.profile);
-          const currentTheme = this.resolveWebsiteTheme(currentInvitation.theme);
-          this.openWebsitePublicView(currentInvitation, currentTheme);
+          const originalLabel = activateButton.textContent;
+          activateButton.disabled = true;
+          activateButton.textContent = "Публикуем...";
+          try {
+            const currentInvitation = this.getWebsiteInvitation(this.state.profile);
+            const currentTheme = this.resolveWebsiteTheme(currentInvitation.theme);
+            await this.openWebsitePublicView(currentInvitation, currentTheme);
+          } finally {
+            activateButton.textContent = originalLabel;
+            activateButton.disabled = false;
+          }
         });
       }
       const exportButton = this.appEl.querySelector('[data-action="website-export"]');
@@ -1556,18 +1563,23 @@
       }
       return base;
     },
-    openWebsitePublicView(invitation, theme) {
-      const publication = this.publishWebsiteInvitation(invitation, theme);
+    async openWebsitePublicView(invitation, theme) {
+      const publication = await this.publishWebsiteInvitation(invitation, theme);
       if (!publication || !publication.url) {
         return;
       }
       this.renderWebsiteDesigner();
-      const popup = window.open(publication.url, "_blank", "noopener");
-      if (!popup) {
-        alert("Не удалось открыть новое окно. Разрешите всплывающие окна, чтобы просмотреть сайт.");
-        return;
+      try {
+        const popup = window.open(publication.url, "_blank", "noopener");
+        if (!popup) {
+          alert("Не удалось открыть новое окно. Разрешите всплывающие окна, чтобы просмотреть сайт.");
+          return;
+        }
+        popup.focus();
+      } catch (error) {
+        console.error("Не удалось открыть приглашение", error);
+        alert("Не удалось открыть ссылку. Откройте приглашение вручную по опубликованному адресу.");
       }
-      popup.focus();
     },
     exportWebsiteInvitation(invitation, theme) {
       const html = this.renderWebsitePublicHtml(invitation, theme, { forPrint: true });
@@ -1777,93 +1789,93 @@
       return `${pageRule}
     ${base}`;
     },
-    generateWebsitePublicId() {
-      const random = Math.random().toString(36).slice(2, 8);
-      const timestamp = Date.now().toString(36);
-      return `invite-${timestamp}-${random}`;
-    },
-    getPublicInvitationStorageKey(publicId) {
-      return `${PUBLIC_INVITATION_STORAGE_PREFIX}${publicId}`;
-    },
-    buildPublicInvitationPayload(publicId, invitation, theme) {
-      const sanitizedInvitation = {
-        groom: invitation.groom || "",
-        bride: invitation.bride || "",
-        date: invitation.date || "",
-        time: invitation.time || "",
-        venueName: invitation.venueName || "",
-        venueAddress: invitation.venueAddress || "",
-        giftCard: invitation.giftCard || "",
-        theme: invitation.theme || theme.id,
-        publicId: invitation.publicId || publicId,
-        updatedAt: invitation.updatedAt || Date.now(),
-        publishedAt: invitation.publishedAt || Date.now()
-      };
-      return {
-        version: 1,
-        publicId,
-        publishedAt: sanitizedInvitation.publishedAt,
-        updatedAt: sanitizedInvitation.updatedAt,
-        invitation: sanitizedInvitation,
-        theme: {
-          id: theme.id,
-          name: theme.name,
-          description: theme.description,
-          tagline: theme.tagline,
-          colors: { ...(theme.colors || {}) },
-          headingFont: theme.headingFont,
-          bodyFont: theme.bodyFont,
-          fontLink: theme.fontLink
-        }
-      };
-    },
-    persistPublicInvitation(publicId, invitation, theme) {
-      const payload = this.buildPublicInvitationPayload(publicId, invitation, theme);
-      try {
-        localStorage.setItem(this.getPublicInvitationStorageKey(publicId), JSON.stringify(payload));
-      } catch (error) {
-        console.error("Не удалось сохранить публичную версию приглашения", error);
-      }
-      return payload;
-    },
-    buildPublicInvitationUrl(publicId) {
-      if (!publicId) {
+    buildPublicInvitationUrl(slug) {
+      if (!slug) {
         return "";
       }
       try {
-        const baseUrl = new URL(window.location.href);
-        baseUrl.hash = "";
-        baseUrl.search = "";
-        const segments = baseUrl.pathname.split("/");
-        segments[segments.length - 1] = "invitation.html";
-        baseUrl.pathname = segments.join("/");
-        baseUrl.searchParams.set("id", publicId);
-        return baseUrl.toString();
+        return new URL(`/invite/${encodeURIComponent(slug)}`, window.location.origin).toString();
       } catch (error) {
-        return `${window.location.origin}/invitation.html?id=${encodeURIComponent(publicId)}`;
+        return `${window.location.origin}/invite/${encodeURIComponent(slug)}`;
       }
     },
-    publishWebsiteInvitation(invitation, theme) {
+    async publishWebsiteInvitation(invitation, theme) {
       try {
         const resolvedTheme = this.resolveWebsiteTheme(theme?.id || invitation.theme);
         const normalized = this.normalizeWebsiteInvitation({ ...invitation, theme: resolvedTheme.id }, Date.now());
         const currentInvitation = { ...normalized.invitation };
-        if (!currentInvitation.publicId) {
-          currentInvitation.publicId = this.generateWebsitePublicId();
-        }
-        const now = Date.now();
-        currentInvitation.publishedAt = now;
-        currentInvitation.updatedAt = now;
-        const normalizedFinal = this.normalizeWebsiteInvitation(currentInvitation, currentInvitation.updatedAt).invitation;
-        this.updateProfile({ websiteInvitation: normalizedFinal });
-        this.persistPublicInvitation(normalizedFinal.publicId, normalizedFinal, resolvedTheme);
-        return {
-          publicId: normalizedFinal.publicId,
-          url: this.buildPublicInvitationUrl(normalizedFinal.publicId)
+        const payload = {
+          version: 1,
+          invitation: {
+            groom: currentInvitation.groom,
+            bride: currentInvitation.bride,
+            date: currentInvitation.date,
+            time: currentInvitation.time,
+            venueName: currentInvitation.venueName,
+            venueAddress: currentInvitation.venueAddress,
+            giftCard: currentInvitation.giftCard,
+            theme: currentInvitation.theme,
+            publicId: currentInvitation.publicId || undefined,
+            updatedAt: currentInvitation.updatedAt,
+            publishedAt: currentInvitation.publishedAt
+          },
+          theme: {
+            id: resolvedTheme.id,
+            name: resolvedTheme.name,
+            description: resolvedTheme.description,
+            tagline: resolvedTheme.tagline,
+            colors: { ...(resolvedTheme.colors || {}) },
+            headingFont: resolvedTheme.headingFont,
+            bodyFont: resolvedTheme.bodyFont,
+            fontLink: resolvedTheme.fontLink
+          },
+          slug: currentInvitation.publicId || undefined
         };
+
+        const response = await fetch('/api/invitations', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          let message = 'Не удалось опубликовать приглашение. Попробуйте ещё раз.';
+          try {
+            const errorPayload = await response.json();
+            if (errorPayload && typeof errorPayload.message === 'string' && errorPayload.message.trim().length) {
+              message = errorPayload.message.trim();
+            }
+          } catch (error) {
+            // ignore
+          }
+          alert(message);
+          return null;
+        }
+
+        const publication = await response.json();
+        if (!publication || !publication.slug) {
+          alert('Сервер вернул пустой ответ. Попробуйте ещё раз.');
+          return null;
+        }
+
+        const now = Date.now();
+        const slug = publication.slug;
+        const url = publication.url || this.buildPublicInvitationUrl(slug);
+        const updatedInvitation = {
+          ...currentInvitation,
+          publicId: slug,
+          publishedAt: now,
+          updatedAt: now
+        };
+
+        this.updateProfile({ websiteInvitation: updatedInvitation });
+
+        return { slug, url };
       } catch (error) {
-        console.error("Не удалось опубликовать приглашение", error);
-        alert("Произошла ошибка при активации сайта. Попробуйте ещё раз.");
+        console.error('Не удалось опубликовать приглашение', error);
+        alert('Не удалось подключиться к серверу. Проверьте соединение и повторите попытку.');
         return null;
       }
     },
