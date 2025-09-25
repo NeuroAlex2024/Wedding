@@ -1,3 +1,5 @@
+import themesData from '../shared/themes.json' assert { type: 'json' };
+
 (function () {
   const storageKey = "wedding_profile_v1";
   const allowedRoutes = ["#/quiz", "#/dashboard", "#/website"];
@@ -20,88 +22,32 @@
   const BUDGET_COLORS = ["#E07A8B", "#F4A259", "#5B8E7D", "#7A77B9", "#F1BF98", "#74D3AE"];
   const PROFILE_SCHEMA_VERSION = 3;
 
-  const WEBSITE_THEMES = [
-    {
-      id: "blush",
-      name: "Нежный рассвет",
-      description: "Пастельные оттенки и мягкие линии для камерной свадьбы.",
-      tagline: "Праздник любви",
-      colors: {
-        background: "#fff6f4",
-        card: "rgba(255, 255, 255, 0.88)",
-        accent: "#d87a8d",
-        accentSoft: "rgba(216, 122, 141, 0.12)",
-        text: "#35233b",
-        muted: "#7a5c6b",
-        pattern:
-          "radial-gradient(circle at 20% 20%, rgba(216, 122, 141, 0.18), transparent 55%), radial-gradient(circle at 80% 0%, rgba(255, 210, 222, 0.55), transparent 45%)"
-      },
-      headingFont: "'Playfair Display', 'Times New Roman', serif",
-      bodyFont: "'Montserrat', 'Segoe UI', sans-serif",
-      fontLink:
-        "https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&family=Playfair+Display:wght@500;600&display=swap"
-    },
-    {
-      id: "emerald",
-      name: "Изумрудный сад",
-      description: "Свежая зелень и золото для классической церемонии.",
-      tagline: "Торжество в кругу близких",
-      colors: {
-        background: "#f3f7f5",
-        card: "rgba(255, 255, 255, 0.9)",
-        accent: "#3b8763",
-        accentSoft: "rgba(59, 135, 99, 0.14)",
-        text: "#20332a",
-        muted: "#4f6b5d",
-        pattern:
-          "radial-gradient(circle at 0% 100%, rgba(59, 135, 99, 0.18), transparent 55%), radial-gradient(circle at 95% 20%, rgba(198, 228, 214, 0.6), transparent 45%)"
-      },
-      headingFont: "'Cormorant Garamond', 'Georgia', serif",
-      bodyFont: "'Source Sans Pro', 'Segoe UI', sans-serif",
-      fontLink:
-        "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&family=Source+Sans+Pro:wght@400;600&display=swap"
-    },
-    {
-      id: "sky",
-      name: "Летний ветер",
-      description: "Воздушные голубые оттенки и минимализм для свадьбы на природе.",
-      tagline: "Мы ждём вас",
-      colors: {
-        background: "#f4f8ff",
-        card: "rgba(255, 255, 255, 0.92)",
-        accent: "#4f7ac8",
-        accentSoft: "rgba(79, 122, 200, 0.12)",
-        text: "#1f2b3d",
-        muted: "#4e637d",
-        pattern:
-          "radial-gradient(circle at 15% 10%, rgba(79, 122, 200, 0.2), transparent 55%), radial-gradient(circle at 85% 10%, rgba(196, 213, 246, 0.6), transparent 45%)"
-      },
-      headingFont: "'Marcellus', 'Georgia', serif",
-      bodyFont: "'Raleway', 'Segoe UI', sans-serif",
-      fontLink:
-        "https://fonts.googleapis.com/css2?family=Marcellus&family=Raleway:wght@400;600&display=swap"
-    },
-    {
-      id: "noir",
-      name: "Современная классика",
-      description: "Контрастный монохром и акценты для стильного вечера в городе.",
-      tagline: "День, которого мы ждали",
-      colors: {
-        background: "#f7f6f4",
-        card: "rgba(255, 255, 255, 0.95)",
-        accent: "#2f2a3b",
-        accentSoft: "rgba(47, 42, 59, 0.1)",
-        text: "#1d1a24",
-        muted: "#5c566e",
-        pattern:
-          "radial-gradient(circle at 12% 25%, rgba(47, 42, 59, 0.08), transparent 55%), radial-gradient(circle at 88% 10%, rgba(196, 192, 204, 0.5), transparent 45%)"
-      },
-      headingFont: "'Prata', 'Times New Roman', serif",
-      bodyFont: "'Manrope', 'Helvetica Neue', sans-serif",
-      fontLink:
-        "https://fonts.googleapis.com/css2?family=Manrope:wght@400;600&family=Prata&display=swap"
-    }
-  ];
+  const WEBSITE_THEMES = Array.isArray(themesData?.themes) ? themesData.themes : [];
+  const THEME_DEFAULTS = themesData?.defaults && typeof themesData.defaults === "object"
+    ? themesData.defaults
+    : {
+        id: "default",
+        name: "",
+        description: "",
+        tagline: "Приглашение",
+        colors: {
+          background: "#fff7f5",
+          card: "rgba(255, 255, 255, 0.95)",
+          accent: "#d87a8d",
+          accentSoft: "rgba(216, 122, 141, 0.12)",
+          text: "#35233b",
+          muted: "#7a5c6b",
+          pattern: "none"
+        },
+        headingFont: "'Playfair Display', 'Times New Roman', serif",
+        bodyFont: "'Montserrat', 'Segoe UI', sans-serif",
+        fontLink: ""
+      };
+  const DEFAULT_THEME_ID = typeof themesData?.defaultThemeId === "string" && themesData.defaultThemeId.trim()
+    ? themesData.defaultThemeId.trim()
+    : (Array.isArray(WEBSITE_THEMES) && WEBSITE_THEMES.length
+        ? WEBSITE_THEMES[0].id
+        : THEME_DEFAULTS.id || "default");
 
   const App = {
     storageKey,
@@ -1385,7 +1331,7 @@
       return normalized.invitation;
     },
     createDefaultWebsiteInvitation(timestamp = Date.now()) {
-      const defaultTheme = Array.isArray(WEBSITE_THEMES) && WEBSITE_THEMES.length ? WEBSITE_THEMES[0].id : "default";
+      const defaultTheme = DEFAULT_THEME_ID;
       return {
         groom: "",
         bride: "",
@@ -1451,42 +1397,28 @@
     },
     resolveWebsiteTheme(themeId) {
       if (!Array.isArray(WEBSITE_THEMES) || WEBSITE_THEMES.length === 0) {
-        return {
-          id: "default",
-          name: "Базовый",
-          description: "",
-          tagline: "Приглашение",
-          colors: {
-            background: "#ffffff",
-            card: "rgba(255, 255, 255, 0.92)",
-            accent: "#e07a8b",
-            accentSoft: "rgba(224, 122, 139, 0.14)",
-            text: "#2f2a3b",
-            muted: "#6e6781",
-            pattern: "none"
-          },
-          headingFont: "'Playfair Display', 'Times New Roman', serif",
-          bodyFont: "'Montserrat', 'Segoe UI', sans-serif"
-        };
+        return THEME_DEFAULTS;
       }
       const found = WEBSITE_THEMES.find((theme) => theme && theme.id === themeId);
-      return found || WEBSITE_THEMES[0];
+      const fallback = WEBSITE_THEMES.find((theme) => theme && theme.id === DEFAULT_THEME_ID);
+      return found || fallback || WEBSITE_THEMES[0] || THEME_DEFAULTS;
     },
     buildWebsiteThemeStyle(theme) {
       if (!theme || typeof theme !== "object") {
         return "";
       }
       const colors = theme.colors || {};
+      const defaultColors = THEME_DEFAULTS.colors || {};
       const entries = [
-        ["--website-bg", colors.background || "#ffffff"],
-        ["--website-card", colors.card || "rgba(255, 255, 255, 0.9)"],
-        ["--website-accent", colors.accent || "#e07a8b"],
-        ["--website-accent-soft", colors.accentSoft || "rgba(224, 122, 139, 0.14)"],
-        ["--website-text", colors.text || "#2f2a3b"],
-        ["--website-muted", colors.muted || "#6e6781"],
-        ["--website-pattern", colors.pattern || "none"],
-        ["--website-heading-font", theme.headingFont || "'Georgia', serif"],
-        ["--website-body-font", theme.bodyFont || "'Segoe UI', sans-serif"]
+        ["--website-bg", colors.background || defaultColors.background || "#ffffff"],
+        ["--website-card", colors.card || defaultColors.card || "rgba(255, 255, 255, 0.9)"],
+        ["--website-accent", colors.accent || defaultColors.accent || "#e07a8b"],
+        ["--website-accent-soft", colors.accentSoft || defaultColors.accentSoft || "rgba(224, 122, 139, 0.14)"],
+        ["--website-text", colors.text || defaultColors.text || "#2f2a3b"],
+        ["--website-muted", colors.muted || defaultColors.muted || "#6e6781"],
+        ["--website-pattern", colors.pattern || defaultColors.pattern || "none"],
+        ["--website-heading-font", theme.headingFont || THEME_DEFAULTS.headingFont || "'Georgia', serif"],
+        ["--website-body-font", theme.bodyFont || THEME_DEFAULTS.bodyFont || "'Segoe UI', sans-serif"]
       ];
       return entries
         .filter(([, value]) => typeof value === "string" && value.length)
