@@ -1,5 +1,5 @@
 const { sanitizeSlug } = require('./slug');
-const { buildTheme } = require('../templates/invitationTemplate');
+const { buildTheme } = require('../../shared/themeUtils');
 
 function sanitizeInvitation(raw) {
   const source = raw && typeof raw === 'object' ? raw : {};
