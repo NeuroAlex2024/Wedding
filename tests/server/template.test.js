@@ -1,7 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { renderInvitationHtml, buildTheme } = require('../../src/server/templates/invitationTemplate');
+const { renderInvitationHtml } = require('../../src/server/templates/invitationTemplate');
+const { buildTheme } = require('../../src/shared/themeUtils');
 
 test('buildTheme falls back to defaults when values missing', () => {
   const theme = buildTheme({});
