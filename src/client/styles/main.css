@@ -336,6 +336,14 @@ button.secondary:hover {
   text-align: center;
 }
 
+.website-preview-card__tagline {
+  margin: 0;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  color: var(--website-accent, var(--accent));
+}
+
 .website-preview__eyebrow {
   letter-spacing: 0.28em;
   text-transform: uppercase;
