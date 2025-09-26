@@ -1,43 +1,33 @@
 import type { AppContext } from '../../types';
 import type { ProfileUpdate } from '../../state/profileStore';
+import { getThemeById, loadThemes } from '../../state/themes';
+import type { WebsiteTheme } from '../../state/themes';
 
-interface Theme {
-  id: string;
-  name: string;
-  description?: string;
-  colors?: Record<string, string>;
-  fontLink?: string;
-}
+const THEME_FONT_LINK_ID = 'website-theme-font';
 
-interface ThemeResponse {
-  themes: Theme[];
-  defaultThemeId?: string;
-}
-
-let cachedThemes: Theme[] | null = null;
-let themesPromise: Promise<Theme[]> | null = null;
-
-async function loadThemes(): Promise<Theme[]> {
-  if (cachedThemes) {
-    return cachedThemes;
+function ensureThemeFontLink(fontLink?: string) {
+  if (typeof document === 'undefined') {
+    return;
   }
-  if (!themesPromise) {
-    themesPromise = fetch('/shared/themes.json')
-      .then((response) => response.json() as Promise<ThemeResponse>)
-      .then((data) => {
-        cachedThemes = data.themes ?? [];
-        return cachedThemes;
-      })
-      .catch((error) => {
-        console.warn('Не удалось загрузить темы сайта', error);
-        cachedThemes = [];
-        return cachedThemes;
-      });
+  const existing = document.getElementById(THEME_FONT_LINK_ID) as HTMLLinkElement | null;
+  if (fontLink && fontLink.trim().length > 0) {
+    if (existing) {
+      if (existing.href !== fontLink) {
+        existing.href = fontLink;
+      }
+    } else {
+      const link = document.createElement('link');
+      link.id = THEME_FONT_LINK_ID;
+      link.rel = 'stylesheet';
+      link.href = fontLink;
+      document.head.appendChild(link);
+    }
+  } else if (existing) {
+    existing.remove();
   }
-  return themesPromise;
 }
 
-function renderThemeOptions(themes: Theme[], selectedId: string | null): string {
+function renderThemeOptions(themes: WebsiteTheme[], selectedId: string | null): string {
   if (!themes.length) {
     return '<option value="">Стандартная тема</option>';
   }
@@ -45,6 +35,69 @@ function renderThemeOptions(themes: Theme[], selectedId: string | null): string 
     '<option value="">Стандартная тема</option>',
     ...themes.map((theme) => `<option value="${theme.id}" ${selectedId === theme.id ? 'selected' : ''}>${theme.name}</option>`),
   ].join('');
+}
+
+function setStyle(element: HTMLElement | null, property: string, value: string | undefined) {
+  if (!element) return;
+  if (value && value.length) {
+    element.style.setProperty(property, value);
+  } else {
+    element.style.removeProperty(property);
+  }
+}
+
+function applyThemeToPreview(root: HTMLElement, themeId: string | null) {
+  const theme = getThemeById(themeId);
+  const previewSection = root.querySelector<HTMLElement>('.website__preview');
+  const previewCard = root.querySelector<HTMLElement>('[data-preview-card]');
+
+  if (!previewCard) {
+    return;
+  }
+
+  const colors = theme.colors ?? {};
+
+  setStyle(previewSection, 'background', colors.background);
+  setStyle(previewSection, 'color', colors.text);
+
+  setStyle(previewCard, 'background', colors.card);
+  setStyle(previewCard, 'color', colors.text);
+  setStyle(previewCard, 'borderColor', colors.accentSoft);
+
+  const titleEl = previewCard.querySelector<HTMLElement>('[data-preview-title]');
+  if (titleEl) {
+    if (theme.headingFont) {
+      titleEl.style.fontFamily = theme.headingFont;
+    } else {
+      titleEl.style.removeProperty('font-family');
+    }
+    setStyle(titleEl, 'color', colors.text);
+  }
+
+  if (theme.bodyFont) {
+    previewCard.style.fontFamily = theme.bodyFont;
+  } else {
+    previewCard.style.removeProperty('font-family');
+  }
+
+  const messageEl = previewCard.querySelector<HTMLElement>('[data-preview-message]');
+  setStyle(messageEl, 'color', colors.muted ?? colors.text);
+
+  const scheduleEl = previewCard.querySelector<HTMLElement>('[data-preview-schedule]');
+  if (scheduleEl) {
+    setStyle(scheduleEl, 'background', colors.accentSoft);
+    setStyle(scheduleEl, 'color', colors.text);
+    scheduleEl.style.borderRadius = '12px';
+    scheduleEl.style.padding = '0.75rem 1rem';
+  }
+
+  const taglineEl = previewCard.querySelector<HTMLElement>('[data-theme-tagline]');
+  if (taglineEl) {
+    taglineEl.textContent = theme.tagline && theme.tagline.trim().length ? theme.tagline : 'Приглашение';
+    setStyle(taglineEl, 'color', colors.accent ?? colors.text);
+  }
+
+  ensureThemeFontLink(theme.fontLink);
 }
 
 export async function renderWebsite(context: AppContext) {
@@ -71,10 +124,11 @@ export async function renderWebsite(context: AppContext) {
       </form>
       <section class="website__preview">
         <h2>Превью</h2>
-        <article class="website-preview-card">
-          <h3>${profile.websiteTitle}</h3>
-          <p>${profile.websiteMessage}</p>
-          <pre>${profile.websiteSchedule || 'Расписание ещё не заполнено'}</pre>
+        <article class="website-preview-card" data-preview-card>
+          <p class="website-preview-card__tagline" data-theme-tagline></p>
+          <h3 data-preview-title>${profile.websiteTitle}</h3>
+          <p data-preview-message>${profile.websiteMessage}</p>
+          <pre data-preview-schedule>${profile.websiteSchedule || 'Расписание ещё не заполнено'}</pre>
         </article>
       </section>
     </section>
@@ -82,6 +136,10 @@ export async function renderWebsite(context: AppContext) {
 
   const form = root.querySelector<HTMLFormElement>('#website-form');
   const themeSelect = root.querySelector<HTMLSelectElement>('#website-theme-select');
+  const previewCard = root.querySelector<HTMLElement>('[data-preview-card]');
+  const previewTitle = root.querySelector<HTMLElement>('[data-preview-title]');
+  const previewMessage = root.querySelector<HTMLElement>('[data-preview-message]');
+  const previewSchedule = root.querySelector<HTMLElement>('[data-preview-schedule]');
 
   if (themeSelect) {
     const themes = await loadThemes();
@@ -90,8 +148,11 @@ export async function renderWebsite(context: AppContext) {
       const target = event.target as HTMLSelectElement;
       const update: ProfileUpdate = { websiteThemeId: target.value || null };
       store.update(update);
+      applyThemeToPreview(root, update.websiteThemeId);
     });
   }
+
+  applyThemeToPreview(root, profile.websiteThemeId);
 
   if (!form) {
     return;
@@ -105,20 +166,14 @@ export async function renderWebsite(context: AppContext) {
     store.update(update);
 
     if (target.name.startsWith('website')) {
-      const preview = root.querySelector<HTMLElement>('.website-preview-card');
-      if (preview) {
-        const titleEl = preview.querySelector('h3');
-        const messageEl = preview.querySelector('p');
-        const scheduleEl = preview.querySelector('pre');
-        if (titleEl && target.name === 'websiteTitle') {
-          titleEl.textContent = target.value;
-        }
-        if (messageEl && target.name === 'websiteMessage') {
-          messageEl.textContent = target.value;
-        }
-        if (scheduleEl && target.name === 'websiteSchedule') {
-          scheduleEl.textContent = target.value || 'Расписание ещё не заполнено';
-        }
+      if (previewCard && target.name === 'websiteTitle' && previewTitle) {
+        previewTitle.textContent = target.value;
+      }
+      if (previewCard && target.name === 'websiteMessage' && previewMessage) {
+        previewMessage.textContent = target.value;
+      }
+      if (previewCard && target.name === 'websiteSchedule' && previewSchedule) {
+        previewSchedule.textContent = target.value || 'Расписание ещё не заполнено';
       }
     }
   });
