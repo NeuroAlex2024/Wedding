@@ -3,6 +3,7 @@ const morgan = require('morgan');
 const path = require('path');
 
 const invitationsRouter = require('./routes/invitations');
+const { sanitizeSlug, isSafeSlug } = require('./utils/slug');
 
 const app = express();
 
@@ -19,6 +20,19 @@ app.use('/api/invitations', invitationsRouter.apiRouter);
 app.use('/invite', invitationsRouter.publicRouter);
 
 app.use('/assets', express.static(ASSETS_DIR));
+
+app.get('/invitation.html', (req, res) => {
+  const slugParam = req.query.slug || req.query.id || '';
+  const slug = sanitizeSlug(slugParam);
+
+  if (slug && isSafeSlug(slug)) {
+    const target = `/invite/${encodeURIComponent(slug)}`;
+    return res.redirect(301, target);
+  }
+
+  return res.status(400).send('Ссылка приглашения изменилась. Используйте /invite/<slug>.');
+});
+
 app.use(express.static(CLIENT_DIR, { extensions: ['html'] }));
 
 app.use((err, req, res, next) => {
